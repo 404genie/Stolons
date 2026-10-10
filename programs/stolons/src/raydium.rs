@@ -1,4 +1,5 @@
-use anchor_lang::{prelude::*, solana_program::hash::hash};
+use anchor_lang::prelude::*;
+use solana_sha256_hasher::hash;
 use crate::{constants::*, errors::StolonsError, state::GlobalConfig};
 
 #[derive(Clone, Copy)]
