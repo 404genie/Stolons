@@ -41,13 +41,15 @@ export default function ReproductionPage() {
   const eligible = lineage && (lineage.status === LineageStatus.RootActive || lineage.status === LineageStatus.DescendantActive);
 
   async function openRound() {
-    if (!wallet.publicKey || !wallet.signTransaction || !lineage) { setMessage("Connect a wallet to open a round."); return; }
+    const publicKey = wallet.publicKey;
+    const signTransaction = wallet.signTransaction;
+    if (!publicKey || !signTransaction || !lineage) { setMessage("Connect a wallet to open a round."); return; }
     setBusy(true); setMessage("");
     try {
       const mint = new PublicKey(mintText);
       const epoch = deriveEpochPda(programId, mint, lineage.nextEpochId);
       const instruction = buildInstruction(programId, "open_epoch", {
-        payer: wallet.publicKey,
+        payer: publicKey,
         config: deriveConfigPda(programId),
         parent: deriveLineagePda(programId, mint),
         parent_mint: mint,
@@ -59,7 +61,7 @@ export default function ReproductionPage() {
         token_program: TOKEN_PROGRAM_ID,
         system_program: SYSTEM_PROGRAM_ID
       }, lineage.nextEpochId);
-      const signature = await client.send(wallet, instruction);
+      const signature = await client.send({ publicKey, signTransaction }, instruction);
       setMessage(`Round opened: ${signature}`);
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Transaction failed.");
