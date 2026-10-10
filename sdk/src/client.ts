@@ -26,7 +26,9 @@ export function decodeLineage(data: Buffer | Uint8Array): LineageAccount {
   const bytes = Buffer.from(data);
   if (bytes.length < 317) throw new Error("lineage account is shorter than the pinned layout");
   if (!bytes.subarray(0, 8).equals(Buffer.from(LINEAGE_DISCRIMINATOR))) throw new Error("lineage account discriminator mismatch");
-  const status = STATUS[bytes[137]];
+  const statusCode = bytes[137];
+  if (statusCode === undefined) throw new Error("lineage account is shorter than the pinned layout");
+  const status = STATUS[statusCode];
   if (!status) throw new Error("unknown lineage status");
   return {
     mint: key(bytes, 8), rootMint: key(bytes, 40), parentMint: key(bytes, 72), creator: key(bytes, 104),
