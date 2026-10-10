@@ -18,6 +18,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.89.0
         with:
           components: rustfmt, clippy
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential libudev-dev pkg-config
       - name: Install Anchor and Solana toolchain
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.0/install)"
