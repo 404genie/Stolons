@@ -62,7 +62,8 @@ export class StolonsClient {
     if (extraSigners.length) transaction.partialSign(...extraSigners);
     const signed = await signer.signTransaction(transaction);
     const signature = await this.connection.sendRawTransaction(signed.serialize(), { preflightCommitment: "confirmed" });
-    await this.connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+    const confirmation = await this.connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+    if (confirmation.value.err) throw new Error(`Transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`);
     return signature;
   }
 }
