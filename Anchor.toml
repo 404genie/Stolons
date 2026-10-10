@@ -1,0 +1,24 @@
+[toolchain]
+anchor_version = "0.32.2"
+solana_version = "2.3.0"
+
+[features]
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+stolons = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+
+[programs.devnet]
+stolons = "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "pnpm test"
+
+[workspace]
+members = ["programs/stolons"]
+

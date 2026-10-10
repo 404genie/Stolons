@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: rustfmt, clippy
+      - name: Install Anchor and Solana toolchain
+        run: |
+          sh -c "$(curl -sSfL https://release.anza.xyz/v2.3.0/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+          cargo install --git https://github.com/solana-foundation/anchor --tag v0.32.2 anchor-cli --locked
+      - run: pnpm install --no-frozen-lockfile
+      - run: cargo test --workspace
+      - run: pnpm test
+      - name: Build SBF and preserve compiler diagnostics
+        shell: bash
+        run: set -o pipefail && anchor build 2>&1 | tee /tmp/stolons-anchor-build.log
+      - run: node scripts/check-sbf-stack.mjs /tmp/stolons-anchor-build.log
+      - run: pnpm idl:sync
+      - run: pnpm idl:check
+      - run: pnpm sdk:build
+      - run: pnpm web:build
+      - run: pnpm indexer:build

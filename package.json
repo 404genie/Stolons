@@ -1,0 +1,24 @@
+{
+  "name": "stolons-protocol",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": ">=20.11" },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
+    "test:anchor": "anchor test",
+    "anchor:build": "anchor build",
+    "sdk:build": "pnpm --filter @stolons/sdk build",
+    "web:build": "pnpm --filter @stolons/web build",
+    "indexer:build": "pnpm --filter @stolons/indexer build",
+    "idl:sync": "pnpm --filter @stolons/sdk sync-idl",
+    "idl:check": "pnpm --filter @stolons/sdk check-idl",
+    "stack:check": "node scripts/check-sbf-stack.mjs"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "1.99.0",
+    "typescript": "^5.9.3",
+    "tsx": "^4.20.6"
+  }
+}

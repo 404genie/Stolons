@@ -1,0 +1,11 @@
+node_modules/
+.next/
+target/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+Anchor.toml.local
+keypairs/

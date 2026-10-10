@@ -1,0 +1,28 @@
+{
+  "name": "@stolons/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./math": "./dist/math.js",
+    "./builders": "./dist/builders.js",
+    "./raydium-layout": "./dist/raydium-layout.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "sync-idl": "tsx ../../scripts/sync-idl.ts",
+    "check-idl": "tsx ../../scripts/check-idl.ts"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "1.99.0",
+    "@raydium-io/raydium-sdk-v2": "0.2.64-alpha"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3",
+    "tsx": "^4.20.6"
+  }
+}
