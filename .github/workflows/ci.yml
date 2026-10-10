@@ -30,8 +30,6 @@ jobs:
       - run: pnpm install --no-frozen-lockfile
       - run: cargo test --workspace
       - run: pnpm test
-      - name: Inspect SBF dependency tree
-        run: cargo tree --target all -i cpufeatures
       - name: Build SBF and preserve compiler diagnostics
         shell: bash
         run: set -o pipefail && anchor build 2>&1 | tee /tmp/stolons-anchor-build.log
