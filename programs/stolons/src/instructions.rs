@@ -806,15 +806,15 @@ pub struct RegisterCandidateLaunch<'info> {
     #[account(mut)]
     pub launcher: Signer<'info>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
-    pub config: Account<'info, GlobalConfig>,
+    pub config: Box<Account<'info, GlobalConfig>>,
     #[account(mut, seeds = [LINEAGE_SEED, parent_mint.key().as_ref()], bump = parent.bump, constraint = parent.mint == parent_mint.key())]
-    pub parent: Account<'info, Lineage>,
+    pub parent: Box<Account<'info, Lineage>>,
     #[account(address = parent.mint)]
-    pub parent_mint: Account<'info, Mint>,
+    pub parent_mint: Box<Account<'info, Mint>>,
     #[account(mut, seeds = [CANDIDATE_SEED, child_mint.key().as_ref()], bump = candidate.bump)]
-    pub candidate: Account<'info, Candidate>,
-    pub proposal: Account<'info, Proposal>,
-    pub child_mint: Account<'info, Mint>,
+    pub candidate: Box<Account<'info, Candidate>>,
+    pub proposal: Box<Account<'info, Proposal>>,
+    pub child_mint: Box<Account<'info, Mint>>,
     /// CHECK: Raydium LaunchLab PoolState validated before and after CPI.
     #[account(mut)]
     pub pool_state: UncheckedAccount<'info>,
@@ -824,11 +824,11 @@ pub struct RegisterCandidateLaunch<'info> {
     #[account(mut)]
     pub vesting_record: UncheckedAccount<'info>,
     #[account(init, payer = launcher, space = Lineage::SPACE, seeds = [LINEAGE_SEED, child_mint.key().as_ref()], bump)]
-    pub child_lineage: Account<'info, Lineage>,
+    pub child_lineage: Box<Account<'info, Lineage>>,
     #[account(mut, seeds = [FAMILY_SEED, parent.root_mint.as_ref()], bump = family.bump, has_one = root_mint)]
-    pub family: Account<'info, Family>,
+    pub family: Box<Account<'info, Family>>,
     #[account(address = parent.root_mint)]
-    pub root_mint: UncheckedAccount<'info>,
+    pub root_mint: Box<Account<'info, Mint>>,
     /// CHECK: global platform vesting signer.
     #[account(mut, seeds = [REPRODUCTION_AUTHORITY_SEED], bump)]
     pub reproduction_authority: UncheckedAccount<'info>,
@@ -843,9 +843,9 @@ pub struct RegisterCandidateLaunch<'info> {
         token::mint = child_mint,
         token::authority = vault_authority
     )]
-    pub reproduction_vault: Account<'info, TokenAccount>,
+    pub reproduction_vault: Box<Account<'info, TokenAccount>>,
     #[account(address = config.quote_mint)]
-    pub quote_mint: Account<'info, Mint>,
+    pub quote_mint: Box<Account<'info, Mint>>,
     /// CHECK: configured LaunchLab executable.
     #[account(address = config.launchlab_program, executable)]
     pub launchlab_program: UncheckedAccount<'info>,
@@ -1171,31 +1171,31 @@ pub fn claim_candidate_reproduction_reserve(ctx: Context<ClaimCandidateReproduct
 #[derive(Accounts)]
 pub struct FinalizeChild<'info> {
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
-    pub config: Account<'info, GlobalConfig>,
+    pub config: Box<Account<'info, GlobalConfig>>,
     #[account(mut, seeds = [FAMILY_SEED, parent.root_mint.as_ref()], bump = family.bump, has_one = root_mint)]
-    pub family: Account<'info, Family>,
+    pub family: Box<Account<'info, Family>>,
     #[account(address = parent.root_mint)]
-    pub root_mint: UncheckedAccount<'info>,
+    pub root_mint: Box<Account<'info, Mint>>,
     #[account(mut, seeds = [LINEAGE_SEED, parent_mint.key().as_ref()], bump = parent.bump, constraint = parent.mint == parent_mint.key())]
-    pub parent: Account<'info, Lineage>,
+    pub parent: Box<Account<'info, Lineage>>,
     #[account(mut, address = parent.mint)]
-    pub parent_mint: Account<'info, Mint>,
+    pub parent_mint: Box<Account<'info, Mint>>,
     #[account(mut, seeds = [CANDIDATE_SEED, child_mint.key().as_ref()], bump = candidate.bump)]
-    pub candidate: Account<'info, Candidate>,
+    pub candidate: Box<Account<'info, Candidate>>,
     #[account(mut, seeds = [LINEAGE_SEED, child_mint.key().as_ref()], bump = child.bump, constraint = child.mint == child_mint.key())]
-    pub child: Account<'info, Lineage>,
+    pub child: Box<Account<'info, Lineage>>,
     #[account(address = child.mint)]
-    pub child_mint: Account<'info, Mint>,
+    pub child_mint: Box<Account<'info, Mint>>,
     /// CHECK: PDA can sign only for the fixed reserve account.
     #[account(seeds = [VAULT_AUTHORITY_SEED, parent_mint.key().as_ref()], bump)]
     pub parent_vault_authority: UncheckedAccount<'info>,
     #[account(mut, seeds = [REPRODUCTION_VAULT_SEED, parent_mint.key().as_ref()], bump, token::mint = parent_mint, token::authority = parent_vault_authority)]
-    pub parent_reproduction_vault: Account<'info, TokenAccount>,
+    pub parent_reproduction_vault: Box<Account<'info, TokenAccount>>,
     /// CHECK: child reserve authority used only for validation.
     #[account(seeds = [VAULT_AUTHORITY_SEED, child_mint.key().as_ref()], bump)]
     pub child_vault_authority: UncheckedAccount<'info>,
     #[account(seeds = [REPRODUCTION_VAULT_SEED, child_mint.key().as_ref()], bump, token::mint = child_mint, token::authority = child_vault_authority)]
-    pub child_reproduction_vault: Account<'info, TokenAccount>,
+    pub child_reproduction_vault: Box<Account<'info, TokenAccount>>,
     pub token_program: Program<'info, Token>,
 }
 
