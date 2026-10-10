@@ -11,8 +11,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "sync-idl": "tsx ../../scripts/sync-idl.ts",
-    "check-idl": "tsx ../../scripts/check-idl.ts"
+    "sync-idl": "tsx ../scripts/sync-idl.ts",
+    "check-idl": "tsx ../scripts/check-idl.ts"
   },
   "dependencies": {
     "buffer": "^6.0.3",
