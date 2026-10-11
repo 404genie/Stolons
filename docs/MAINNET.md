@@ -82,3 +82,24 @@ The tool refuses to overwrite an existing file. It writes only public network/pr
 ## Intended treasury
 
 The intended mainnet treasury is `FRVw3s9Wz4pKzRuUwEj9FZYa39vLbAfXzUqiDYAK2K87`, provided by the owner. It is recorded in the production manifest template. Deployment initialization and the Raydium platform fee wallet must use this same address; preflight checks both. This records deployment intent and does not change any existing on-chain configuration. The mainnet program, platform config, authorities, keeper and lookup table still need their deployment-specific addresses.
+
+## Generated mainnet identities and isolated build
+
+The owner generated and backed up these public identities in Codespaces:
+
+| Role | Public address |
+|---|---|
+| Program | `8uXCB9g8ctvVddm9W992KF862PX1gT5kijEQmbdbjQ8B` |
+| Upgrade/config authority | `ABANF7g1F8UfAXEtBWVuFdodJ3QzAS9oTWj9fSoLx2MC` |
+| Keeper payer | `HwM5Ufv3yLLEemHeWqKhmctSCXM9K7Qbgp8hENrE84T2` |
+
+These addresses do not establish a deployment. The platform configuration and lookup table remain pending.
+
+```bash
+git pull --ff-only
+bash scripts/production/build.sh
+```
+
+The build verifies local keys against `target/mainnet/manifest.json`, archives committed source into an isolated directory, synchronizes that copy's Rust/Anchor identities, and runs Rust, unit, SBF/IDL and client checks. Uncommitted changes are excluded. It writes `stolons.so`, `stolons.json`, artifact hashes and the source commit to `target/mainnet/` without changing devnet artifacts or sending transactions. Keep the local build directory private: it contains a copy of the program key.
+
+Do not run the complete production preflight yet: it correctly rejects the missing platform and lookup table addresses. Build and review the artifact first, then obtain deployment-specific addresses through deployment and initialization.
