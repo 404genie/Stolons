@@ -103,3 +103,13 @@ bash scripts/production/build.sh
 The build verifies local keys against `target/mainnet/manifest.json`, archives committed source into an isolated directory, synchronizes that copy's Rust/Anchor identities, and runs Rust, unit, SBF/IDL and client checks. Uncommitted changes are excluded. It writes `stolons.so`, `stolons.json`, artifact hashes and the source commit to `target/mainnet/` without changing devnet artifacts or sending transactions. Keep the local build directory private: it contains a copy of the program key.
 
 Do not run the complete production preflight yet: it correctly rejects the missing platform and lookup table addresses. Build and review the artifact first, then obtain deployment-specific addresses through deployment and initialization.
+
+The successful Codespaces build and owner-reported hashes are recorded in [validation/mainnet-build-2026-10-11.json](validation/mainnet-build-2026-10-11.json). This records build evidence, not an audit or deployment approval. Before spending SOL, inspect the canonical live venue configurations:
+
+```bash
+node scripts/production/inspect-venues.mjs
+```
+
+This read-only tool accepts the incomplete local manifest. It checks mainnet genesis, Raydium executable/configuration owners and discriminators, reviewed venue fees, the 85 SOL curve target and allocation, authority/keeper balances, and minimum ProgramData rent. The reported rent excludes temporary buffer funding, executable-account rent, transaction fees and initialization costs. It defaults to public mainnet RPC for this inspection only; a dedicated endpoint can be supplied privately as `MAINNET_RPC_URL`.
+
+Before any further Railway or Vercel deployment, consolidate the completed repository branches into `main`, verify the resulting source tree and provide that single branch ZIP for the owner's audit. Keep private keys and credentials excluded.
