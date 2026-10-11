@@ -4,7 +4,9 @@
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@11.25.0",
-  "engines": { "node": ">=20.11" },
+  "engines": {
+    "node": ">=20.11"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "test": "node --experimental-strip-types --test tests/unit/*.test.mjs",
@@ -15,7 +17,9 @@
     "indexer:build": "pnpm --filter @stolons/indexer build",
     "idl:sync": "pnpm --filter @stolons/sdk sync-idl",
     "idl:check": "pnpm --filter @stolons/sdk check-idl",
-    "stack:check": "node scripts/check-sbf-stack.mjs"
+    "stack:check": "node scripts/check-sbf-stack.mjs",
+    "typecheck:clients": "pnpm --filter @stolons/web --filter @stolons/indexer --parallel typecheck",
+    "test:client": "node --test tests/client/*.test.mjs"
   },
   "devDependencies": {
     "@solana/web3.js": "1.99.0",

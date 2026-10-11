@@ -1,4 +1,5 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Buffer } from "buffer";
 import { SEEDS, GENESIS_SUPPLY, REPRODUCTION_RESERVE } from "./constants.js";
 
 const encoder = new TextEncoder();

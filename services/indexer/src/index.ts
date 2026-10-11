@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Connection, PublicKey, type ConfirmedSignatureInfo } from "@solana/web3.js";
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 import { decodeProgramLogs, type DecodedEvent } from "./events.js";
 
 const rpcUrl = process.env.SOLANA_RPC_URL;
@@ -15,7 +15,7 @@ const db = new Pool({ connectionString: databaseUrl, max: 6, idleTimeoutMillis: 
 const pollMs = Math.max(1_000, Number(process.env.POLL_INTERVAL_MS || 5_000));
 const START_MASS = "1000000000000000";
 
-async function applyEvent(client: Awaited<ReturnType<typeof db.connect>>, event: DecodedEvent, signature: string, eventIndex: number, slot: number) {
+async function applyEvent(client: PoolClient, event: DecodedEvent, signature: string, eventIndex: number, slot: number) {
   const p = event.payload;
   const val = (name: string) => p[name] === undefined ? null : String(p[name]);
   switch (event.eventName) {
