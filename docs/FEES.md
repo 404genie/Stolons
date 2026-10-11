@@ -56,3 +56,7 @@ node services/keeper/fees.mjs
 It discovers registered tokens or uses `FEE_KEEPER_MINTS`, skips legacy tokens and empty fee balances, and simulates pending claims. It reads no keypair in dry-run. `--apply` loads only the keeper keypair and submits checked transactions. Configure a scheduler after live validation. The process stops on errors; uncertain submissions require inspecting their signature before restarting. Do not configure blind scheduler retries on ambiguous submission errors. First collection may pay for six recipient ATAs plus a distribution account; maintain payer funding and an extended lookup table.
 
 The worker's two claim transactions are individually atomic. A successful curve payout followed by failed CPMM payout remains a valid curve payout; inspect the second transaction before retrying. The full worker batch is not one atomic transaction.
+
+## Creator claim panel
+
+Connecting the registered creator wallet shows a claim panel on the token page. It rereads pending fees, skips empty streams and submits curve and CPMM collection separately through the checked wallet sender. Both paths pay the registered destinations; CPMM collection also pays treasury. A configured fee keeper can perform the same collection without creator approval. The graduation keeper alone does not collect fees. SOL payouts remain wrapped SOL. The claimant pays transaction fees and any recipient-account rent. Mainnet claims remain behind the public transaction gate.
