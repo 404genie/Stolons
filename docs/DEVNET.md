@@ -2,6 +2,27 @@
 
 Do not deploy to mainnet as part of this runbook. Use a fresh keypair and a persistent devnet program/configuration so each transition can be inspected after the next step.
 
+## Codespaces quick start
+
+Create a Codespace for this branch. The devcontainer installs Node 24, Rust 1.89.0, Solana 2.3.0, Anchor 0.32.2, and pnpm 11.25.0. Wait for the post-create command to finish; if it fails, rerun `bash .devcontainer/setup.sh` and inspect its output.
+
+Run each command separately, stopping on any error:
+
+```bash
+bash scripts/devnet/prepare.sh
+bash scripts/devnet/fund.sh
+bash scripts/devnet/build.sh
+bash scripts/devnet/deploy.sh
+```
+
+`prepare.sh` generates fresh Devnet-only wallet/program keys in ignored `keypairs/`, synchronizes the program ID, and updates local app/indexer env files. It preserves existing keys. These private keys stay in the Codespace; keep a private backup before deleting the Codespace if you want to retain the deployment identity. Never commit them or use a mainnet wallet.
+
+`fund.sh` requests 2 test SOL. The faucet may rate-limit requests; use https://faucet.solana.com with the printed public wallet address if needed. Deployment needs enough balance for the program rent and transaction fees. If the CLI reports insufficient funds, request more test SOL and rerun deployment with the same keys.
+
+`build.sh` runs host Rust tests, SBF/stack checks, IDL parity, SDK/client tests, and all package builds. `deploy.sh` fixes its RPC to Devnet and verifies the recorded binary/IDL hashes and program identity. Deployment is performed only when you explicitly run that command.
+
+After deployment, record the printed program ID and the contents of `target/devnet/program-show.txt`. Share public addresses or error output only. Next verify the Raydium Devnet programs and platform configuration before initializing Stolons; deploying the binary does not initialize the protocol or launch a token. The optional indexer also needs a PostgreSQL `DATABASE_URL`.
+
 ## Before deploying
 
 1. Install Rust 1.89.0, Solana/Agave 2.3.0, and Anchor CLI 0.32.2.
@@ -13,7 +34,7 @@ Do not deploy to mainnet as part of this runbook. Use a fresh keypair and a pers
 
 ## Root token
 
-1. Create a standard SPL mint with six decimals and exactly 1B supply; revoke mint and freeze authorities.
+1. Generate a fresh mint keypair for the LaunchLab InitializeV2 builder. Let Raydium initialize the standard SPL mint; verify six decimals, exactly 1B supply, and revoked mint/freeze authorities after the atomic launch transaction. Do not pre-create the mint separately.
 2. Configure LaunchLab supply=1B, locked reserve=150M, zero cliff/unlock, CPMM migration, and the canonical Stolons platform/config.
 3. Compose `InitializeV2` and `register_root_launch` in one transaction. Confirm the on-chain pool records the creator, mint, quote mint, config, platform, supply, and reserve as expected.
 4. Graduate the pool through Raydium. Call `register_root_migration` with the canonical CPMM pool. Confirm fake owner, wrong config, wrong mint, and wrong PDA cases fail.

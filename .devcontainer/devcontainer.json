@@ -1,0 +1,28 @@
+{
+  "name": "Stolons Devnet",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "1.89.0",
+      "profile": "minimal",
+      "components": "rustfmt,clippy"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/vscode/.local/share/solana/install/active_release/bin:/home/vscode/.cache/stolons-anchor/bin"
+  },
+  "forwardPorts": [
+    3000
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "Stolons Devnet dashboard",
+      "visibility": "private"
+    }
+  },
+  "remoteUser": "vscode"
+}
