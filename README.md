@@ -8,7 +8,7 @@ The `devnet/codespaces` branch has a deployed Devnet program and a verified root
 
 - `programs/stolons`: Anchor program and checked ancestry math.
 - `sdk`: PDA derivation, instruction builders, lineage decoding, and LaunchLab transaction proof helper.
-- `apps/web`: devnet-first lineage dashboard and epoch-opening screen.
+- `apps/web`: devnet-first lineage dashboard, epoch-opening screen, and wallet root launches with image upload and automatic token metadata.
 - `services/indexer`: optional Anchor event indexer backed by PostgreSQL.
 - `tests/unit`: deterministic integer-math and instruction/account-schema parity checks.
 - `docs`: protocol invariants, Raydium integration pin, code logic review, and Devnet acceptance plan.
@@ -47,4 +47,4 @@ node --experimental-strip-types --test tests/unit/*.test.mjs
 3. Build and review the SBF artifact, generated IDL, raw account layouts, CPI account order, and transaction composition.
 4. Complete every step in [`docs/DEVNET.md`](docs/DEVNET.md), including failed and adversarial cases.
 
-The web UI currently supports lineage inspection and opening an epoch. Other lifecycle actions are available as SDK builders but are not yet wired to web forms. The UI is a protocol development surface, not a mainnet launch application.
+The web UI supports lineage inspection, opening an epoch, and atomic root launches. Creators enter token details and upload an image; the app handles JSON creation and hosting. For deployed uploads, configure a public Blob store with the server-only `BLOB_READ_WRITE_TOKEN`; Devnet development uses local storage. See [`docs/DEVNET.md`](docs/DEVNET.md) for setup. Other lifecycle actions remain available through SDK builders and scripts. Mainnet launch remains disabled.

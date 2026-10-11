@@ -3,6 +3,36 @@ import { Buffer } from "buffer";
 
 export const DEVNET_GENESIS_HASH = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 export const MAX_METADATA_BYTES = 32_768;
+export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+
+export interface TokenDraft { name: string; symbol: string; description: string; website: string; twitter: string; telegram: string }
+
+export function normalizeTokenDraft(value: TokenDraft): TokenDraft {
+  const draft = { name: value.name.trim(), symbol: value.symbol.trim(), description: value.description.trim(), website: value.website.trim(), twitter: value.twitter.trim(), telegram: value.telegram.trim() };
+  validateLaunchDetails(draft.name, draft.symbol, "https://example.com/token.json");
+  if (new TextEncoder().encode(draft.description).length > 2000) throw new Error("Description must fit within 2,000 UTF-8 bytes.");
+  for (const [label, text] of Object.entries({ website: draft.website, twitter: draft.twitter, telegram: draft.telegram })) {
+    if (!text) continue;
+    if (text.length > 300) throw new Error(`${label} link is too long.`);
+    const url = new URL(text);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error(`Use an HTTPS ${label} link without credentials.`);
+    if (label === "twitter" && !["x.com", "www.x.com", "twitter.com", "www.twitter.com"].includes(url.hostname)) throw new Error("Use an X or Twitter profile link.");
+    if (label === "telegram" && url.hostname !== "t.me") throw new Error("Use a t.me Telegram link.");
+  }
+  return draft;
+}
+
+export function metadataUploadMessage(draft: TokenDraft, imageHash: string, wallet: string, origin: string, timestamp: number): string {
+  return `Stolons: publish token details\nSite: ${origin}\nWallet: ${wallet}\nTime: ${timestamp}\nImage SHA-256: ${imageHash}\nDetails: ${JSON.stringify(normalizeTokenDraft(draft))}\nThis publishes the token image and details. It does not authorize a transaction.`;
+}
+
+export function createTokenMetadata(draft: TokenDraft, image: string, imageType = "image/png") {
+  const normalized = normalizeTokenDraft(draft);
+  const extensions = Object.fromEntries(Object.entries({ website: normalized.website, twitter: normalized.twitter, telegram: normalized.telegram }).filter(([, value]) => value));
+  const value = { name: normalized.name, symbol: normalized.symbol, description: normalized.description, image, ...(Object.keys(extensions).length ? { extensions } : {}), properties: { files: [{ uri: image, type: imageType }], category: "image" } };
+  validateLaunchMetadata(JSON.stringify(value), normalized.name, normalized.symbol);
+  return value;
+}
 
 export function validateLaunchDetails(name: string, symbol: string, uri: string): void {
   const bytes = (value: string) => new TextEncoder().encode(value).length;

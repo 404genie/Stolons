@@ -5,7 +5,7 @@ export async function checkLaunchMetadata(name: string, symbol: string, uri: str
   validateLaunchDetails(name, symbol, uri);
   let response: Response;
   try {
-    response = await fetch(uri, { signal: AbortSignal.timeout(12_000), cache: "no-store", credentials: "omit", redirect: "error" });
+    response = await fetch(uri, { signal: AbortSignal.timeout(12_000), cache: "no-store", credentials: new URL(uri).origin === window.location.origin ? "same-origin" : "omit", redirect: "error" });
   } catch { throw new Error("Cannot read metadata. Use a direct public HTTPS JSON URL that allows browser access (CORS)."); }
   if (!response.ok || !response.body) throw new Error("Metadata URL did not return readable JSON.");
   const reader = response.body.getReader();

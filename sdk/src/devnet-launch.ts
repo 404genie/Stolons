@@ -13,6 +13,7 @@ export interface RootLaunchInput {
   name: string;
   symbol: string;
   metadataUri: string;
+  lookupTable?: PublicKey;
 }
 
 /** Uses the deployed platform, not a new platform derived from each creator. */
@@ -49,10 +50,13 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   });
   const instructions = appendAfterInitializeV2([init], c.launchpad, { platformConfig: c.platform, poolState: pool, baseMint: mint, quoteMint: c.quote }, registration);
   const latest = await connection.getLatestBlockhash("confirmed");
-  const transaction = new VersionedTransaction(new TransactionMessage({ payerKey: creator, recentBlockhash: latest.blockhash, instructions }).compileToLegacyMessage());
+  const message = new TransactionMessage({ payerKey: creator, recentBlockhash: latest.blockhash, instructions });
+  const table = input.lookupTable ? (await connection.getAddressLookupTable(input.lookupTable)).value : null;
+  if (input.lookupTable && (!table || table.state.deactivationSlot !== 18_446_744_073_709_551_615n)) throw new Error("The shared launch lookup table is unavailable.");
+  const transaction = new VersionedTransaction(table ? message.compileToV0Message([table]) : message.compileToLegacyMessage());
   let size: number;
-  try { size = transaction.serialize().length; } catch { throw new Error("Launch exceeds the transaction size limit. Use a shorter metadata URL or token name."); }
-  if (size > 1232) throw new Error("Launch exceeds the transaction size limit. Use a shorter metadata URL or token name.");
+  try { size = transaction.serialize().length; } catch { throw new Error("Launch setup needs a shared address lookup table for these token details."); }
+  if (size > 1232) throw new Error("Launch setup needs a shared address lookup table for these token details.");
   return { transaction, latest, pool, mint, creator };
 }
 
