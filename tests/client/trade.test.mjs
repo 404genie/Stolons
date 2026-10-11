@@ -53,7 +53,7 @@ function sendFixture(options = {}) {
   const latest = { blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 };
   const transaction = new VersionedTransaction(new TransactionMessage({ payerKey: owner.publicKey, recentBlockhash: latest.blockhash, instructions: [] }).compileToV0Message());
   const calls = { signed: 0, sent: 0 };
-  const connection = { getGenesisHash: async () => options.genesis ?? DEVNET_GENESIS_HASH, simulateTransaction: async () => ({ value: { err: options.simulationError ?? null } }), sendRawTransaction: async () => { calls.sent++; if (options.transportError) throw Error('timeout'); return 'unused'; }, confirmTransaction: async () => { if (options.confirmationTimeout) throw Error('timeout'); return { value: { err: options.chainError ?? null } }; } };
+  const connection = { getLatestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 200 }), getGenesisHash: async () => options.genesis ?? DEVNET_GENESIS_HASH, simulateTransaction: async () => ({ value: { err: options.simulationError ?? null } }), sendRawTransaction: async () => { calls.sent++; if (options.transportError) throw Error('timeout'); return 'unused'; }, confirmTransaction: async () => { if (options.confirmationTimeout) throw Error('timeout'); return { value: { err: options.chainError ?? null } }; } };
   const sign = async tx => { calls.signed++; tx.sign([owner]); return tx; };
   return { connection, calls, sign, prepared: { transaction, latest, quote: { quotedAt: Date.now() - (options.expired ? 60001 : 0) } } };
 }
@@ -116,4 +116,33 @@ test('oversized buys cap SOL input at curve completion rather than rejecting', a
 test('sell shortcuts round down integer atoms and 100% leaves no dust', () => {
   assert.equal(sellPercentage(101n, 25), 25n); assert.equal(sellPercentage(101n, 50), 50n); assert.equal(sellPercentage(101n, 100), 101n);
   assert.equal(sellPercentage(0n, 100), 0n); assert.throws(() => sellPercentage(1n, 200));
+});
+
+test('expired wallet blockhash is re-signed once and only the fresh transaction is sent', async () => {
+  const f = sendFixture();
+  let signedSimulations = 0;
+  let confirmed;
+  f.connection.simulateTransaction = async (tx, options) => {
+    if (!options.sigVerify) { assert.equal(options.replaceRecentBlockhash, true); return {value:{err:null}}; }
+    assert.equal(options.replaceRecentBlockhash, undefined);
+    signedSimulations++;
+    return {value:{err:signedSimulations === 1 ? 'BlockhashNotFound' : null}};
+  };
+  let lastHash;
+  f.connection.getLatestBlockhash = async commitment => {
+    assert.equal(commitment, 'finalized');
+    lastHash = Keypair.generate().publicKey.toBase58();
+    return {blockhash:lastHash,lastValidBlockHeight:200};
+  };
+  f.connection.confirmTransaction = async strategy => { confirmed = strategy; return {value:{err:null}}; };
+  await sendDevnetTrade(f.connection, f.prepared, f.sign);
+  assert.deepEqual(f.calls,{signed:2,sent:1});
+  assert.equal(confirmed.blockhash,lastHash);
+  assert.equal(confirmed.lastValidBlockHeight,200);
+});
+test('repeated blockhash failures stop before broadcast', async () => {
+  const f = sendFixture();
+  f.connection.simulateTransaction = async (tx, options) => ({value:{err:options.sigVerify ? 'BlockhashNotFound' : null}});
+  await assert.rejects(sendDevnetTrade(f.connection,f.prepared,f.sign),/Nothing was submitted/);
+  assert.deepEqual(f.calls,{signed:2,sent:0});
 });

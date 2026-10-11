@@ -125,7 +125,7 @@ export async function buildDevnetTrade(connection: Connection, quote: TradeQuote
 }
 export type PreparedTrade = Awaited<ReturnType<typeof buildDevnetTrade>>;
 export async function simulateDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction }) {
-  const result = await connection.simulateTransaction(prepared.transaction, { sigVerify: false, commitment: 'confirmed' });
+  const result = await connection.simulateTransaction(prepared.transaction, { sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' });
   if (result.value.err) throw new Error(`Trade simulation failed: ${JSON.stringify(result.value.err)}. Check your balance or preview a smaller trade.`);
 }
 export class TradeSubmittedError extends Error {
@@ -144,33 +144,47 @@ export async function sendDevnetTrade(connection: Connection, prepared: { transa
   await simulateDevnetTrade(connection, prepared);
   // Snapshot before the wallet can mutate the transaction in place.
   const tables = await Promise.all(prepared.transaction.message.addressTableLookups.map(async entry => { const value = (await connection.getAddressLookupTable(entry.accountKey)).value; if (!value) throw new Error('Transaction lookup table is unavailable.'); return value; }));
-  const original = TransactionMessage.decompile(VersionedTransaction.deserialize(prepared.transaction.serialize()).message, { addressLookupTableAccounts: tables });
-  const signed = await signTransaction(prepared.transaction);
-  const returned = TransactionMessage.decompile(signed.message, { addressLookupTableAccounts: tables });
-  if (!signed.signatures[0]?.some(byte => byte !== 0)) throw new Error('Wallet did not sign the trade. Reconnect and preview again.');
-  if (!returned.payerKey.equals(original.payerKey) || returned.recentBlockhash !== original.recentBlockhash) throw new Error('Wallet changed the trade payer or blockhash. Preview again.');
-  const protectedInstructions = (message: TransactionMessage) => message.instructions.filter(ix => !ix.programId.equals(ComputeBudgetProgram.programId)).map(ix => ({
-    program: ix.programId.toBase58(), keys: ix.keys.map(k => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), data: Array.from(ix.data)
-  }));
-  if (JSON.stringify(protectedInstructions(original)) !== JSON.stringify(protectedInstructions(returned))) throw new Error('Wallet changed trade instructions. The transaction was not submitted.');
-  for (const ix of returned.instructions.filter(ix => ix.programId.equals(ComputeBudgetProgram.programId))) {
-    const data = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
-    const validLimit = ix.data[0] === 2 && ix.data.length === 5 && data.getUint32(1, true) <= 1_400_000;
-    const validPrice = ix.data[0] === 3 && ix.data.length === 9 && data.getBigUint64(1, true) <= 1_000_000n;
-    if (!validLimit && !validPrice) throw new Error('Wallet requested an unsupported compute budget or excessive priority fee. Reduce the wallet fee and preview again.');
+  const template = prepared.transaction.serialize();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // Use a blockhash already rooted across RPC nodes, after slow preparation.
+    const latest = await connection.getLatestBlockhash('finalized');
+    const transaction = VersionedTransaction.deserialize(template);
+    transaction.message.recentBlockhash = latest.blockhash;
+    transaction.signatures.forEach(signature => signature.fill(0));
+    const original = TransactionMessage.decompile(VersionedTransaction.deserialize(transaction.serialize()).message, { addressLookupTableAccounts: tables });
+    const signed = await signTransaction(transaction);
+    const returned = TransactionMessage.decompile(signed.message, { addressLookupTableAccounts: tables });
+    if (!signed.signatures[0]?.some(byte => byte !== 0)) throw new Error('Wallet did not sign the trade. Reconnect and preview again.');
+    if (!returned.payerKey.equals(original.payerKey) || returned.recentBlockhash !== original.recentBlockhash) throw new Error('Wallet changed the trade payer or blockhash. Preview again.');
+    const protectedInstructions = (message: TransactionMessage) => message.instructions.filter(ix => !ix.programId.equals(ComputeBudgetProgram.programId)).map(ix => ({
+      program: ix.programId.toBase58(), keys: ix.keys.map(k => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), data: Array.from(ix.data)
+    }));
+    if (JSON.stringify(protectedInstructions(original)) !== JSON.stringify(protectedInstructions(returned))) throw new Error('Wallet changed trade instructions. The transaction was not submitted.');
+    for (const ix of returned.instructions.filter(ix => ix.programId.equals(ComputeBudgetProgram.programId))) {
+      const data = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
+      const validLimit = ix.data[0] === 2 && ix.data.length === 5 && data.getUint32(1, true) <= 1_400_000;
+      const validPrice = ix.data[0] === 3 && ix.data.length === 9 && data.getBigUint64(1, true) <= 1_000_000n;
+      if (!validLimit && !validPrice) throw new Error('Wallet requested an unsupported compute budget or excessive priority fee. Reduce the wallet fee and preview again.');
+    }
+    // Verify the exact wallet-signed transaction, including its priority fee.
+    const signedSimulation = await connection.simulateTransaction(signed, { sigVerify: true, commitment: 'confirmed' });
+    if (signedSimulation.value.err === 'BlockhashNotFound') {
+      // Nothing has been broadcast. Rebuild and request signatures again once.
+      if (attempt === 0) continue;
+      throw new Error('Transaction blockhash expired during wallet approval. Retry this action and approve promptly. Nothing was submitted.');
+    }
+    if (signedSimulation.value.err) throw new Error(`Signed trade simulation failed: ${JSON.stringify(signedSimulation.value.err)}. Preview again.`);
+    const signature = signatureBase58(signed.signatures[0]!);
+    try {
+      await connection.sendRawTransaction(signed.serialize(), { preflightCommitment: 'confirmed' });
+      const result = await connection.confirmTransaction({ signature, ...latest }, 'confirmed');
+      if (result.value.err) throw new Error(`On-chain trade failed: ${JSON.stringify(result.value.err)}`);
+      return signature;
+    } catch (cause) {
+      throw new TradeSubmittedError(signature, `${cause instanceof Error ? cause.message : 'Confirmation unavailable'}. Check the transaction before placing another trade.`);
+    }
   }
-  // Verify the exact wallet-signed transaction, including its priority fee.
-  const signedSimulation = await connection.simulateTransaction(signed, { sigVerify: true, commitment: 'confirmed' });
-  if (signedSimulation.value.err) throw new Error(`Signed trade simulation failed: ${JSON.stringify(signedSimulation.value.err)}. Preview again.`);
-  const signature = signatureBase58(signed.signatures[0]!);
-  try {
-    await connection.sendRawTransaction(signed.serialize(), { preflightCommitment: 'confirmed' });
-    const result = await connection.confirmTransaction({ signature, ...prepared.latest }, 'confirmed');
-    if (result.value.err) throw new Error(`On-chain trade failed: ${JSON.stringify(result.value.err)}`);
-    return signature;
-  } catch (cause) {
-    throw new TradeSubmittedError(signature, `${cause instanceof Error ? cause.message : 'Confirmation unavailable'}. Check the transaction before placing another trade.`);
-  }
+  throw new Error('Transaction could not be signed with a fresh blockhash.');
 }
 
 export function sellPercentage(balance: bigint, percent: number): bigint {

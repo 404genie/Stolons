@@ -123,6 +123,7 @@ export async function sendChildLaunch(connection:Connection,prepared:PreparedRoo
  if(!mintSigner.publicKey.equals(prepared.mint))throw Error('Mint signer does not match selected child.');
  prepared.transaction.sign([mintSigner]);
  return sendDevnetTrade(connection,{...prepared,quote:{quotedAt:Date.now()}},async transaction=>{
+  transaction.sign([mintSigner]);
   const signed=await signTransaction(transaction);
   // Wallet priority-fee changes invalidate the earlier mint signature. The sender
   // still verifies all protected instructions before simulating or broadcasting.
