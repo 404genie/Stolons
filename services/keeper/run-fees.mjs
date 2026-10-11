@@ -1,6 +1,6 @@
 import {PublicKey} from '@solana/web3.js';
 import {assertCluster,deriveConfigPda,deriveFeeAuthorityPda,decodeLaunchPool,StolonsClient} from '../../sdk/dist/index.js';
-import {buildCurveCreatorFeeClaim,buildSharedCpmmFeeCollection,readPendingFees} from '../../sdk/dist/fees.js';
+import {buildSharedCpmmFeeCollection,readPendingFees} from '../../sdk/dist/fees.js';
 import {sendDevnetTrade,TradeSubmittedError} from '../../sdk/dist/devnet-trade.js';
 export async function runFeeCollection(connection,program,mint,{cluster,payer,table,apply=false,payerPublicKey,log=console.log}){
  await assertCluster(connection,cluster);
@@ -14,10 +14,9 @@ export async function runFeeCollection(connection,program,mint,{cluster,payer,ta
  if(!launch||!new PublicKey(decodeLaunchPool(launch.data).creator).equals(deriveFeeAuthorityPda(program,mint)))return {status:'legacy',transactions:[]};
  const input={programId:program,mint,payer:payerKey,cluster,...(table?{lookupTable:table}:{})},transactions=[];
  const pending=await readPendingFees(connection,input);
- if(pending.curve===0n&&pending.cpmm===0n)return {status:'empty',transactions};
- // Atomic curve claim forwards only its fresh receipts, preserving any CPMM
- // receipts deposited into the per-token ATA through external collection.
- for(const [kind,builder] of [['curve',buildCurveCreatorFeeClaim],...(lineage.cpmmPool.equals(PublicKey.default)?[]:[['cpmm',buildSharedCpmmFeeCollection]])]){
+ if(pending.cpmm===0n)return {status:'empty',transactions};
+ // Protocol collection pays treasury and escrows the creator share.
+ for(const [kind,builder] of (lineage.cpmmPool.equals(PublicKey.default)?[]:[['cpmm',buildSharedCpmmFeeCollection]])){
   if(pending[kind]===0n)continue;
   const prepared=await builder(connection,input);
   const simulation=await connection.simulateTransaction(prepared.transaction,{sigVerify:false,commitment:'confirmed'});

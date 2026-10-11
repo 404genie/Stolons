@@ -6,7 +6,7 @@ import {decodeLaunchConfig} from './launch-validation.js';
 import {decodeLaunchPool} from './raydium-layout.js';
 import {StolonsClient} from './client.js';
 import {buildInstruction} from './builders.js';
-import {deriveConfigPda,deriveLineagePda,deriveFeeAuthorityPda,deriveFeeDistributionPda} from './pda.js';
+import {deriveConfigPda,deriveLineagePda,deriveFeeAuthorityPda,deriveFeeDistributionPda,deriveCreatorEscrowPda} from './pda.js';
 import {ASSOCIATED_TOKEN_PROGRAM_ID,SYSTEM_PROGRAM_ID} from './constants.js';
 import {deriveCpmmPool} from './raydium.js';
 
@@ -33,20 +33,23 @@ async function prepare(connection:Connection,input:FeeInput,instruction:ReturnTy
  try{if(transaction.serialize().length>1232)throw Error();}catch{throw Error('Fee collection requires an extended lookup table.');}
  return {transaction,latest,cluster:input.cluster??'devnet',quote:{quotedAt:Date.now()}};
 }
-export async function buildSharedCpmmFeeCollection(connection:Connection,input:FeeInput){
- const s=await state(connection,input),account=await connection.getAccountInfo(s.lineage.cpmmPool,'confirmed');
+export async function buildSharedCpmmFeeCollection(connection:Connection,input:FeeInput,claimCreator=false){
+ const s=await state(connection,input);if(claimCreator&&!input.payer.equals(s.lineage.creator))throw Error("Only the creator may claim escrowed fees.");
+ const account=await connection.getAccountInfo(s.lineage.cpmmPool,'confirmed');
  if(!account?.owner.equals(s.cpmm)||!account.data.subarray(0,8).equals(Buffer.from([247,237,227,245,215,195,222,70])))throw Error('Registered CPMM pool missing.');
  const pool=CpmmPoolInfoLayout.decode(account.data);
  if(!pool.poolCreator.equals(s.authority))throw Error('This token retains legacy creator fee ownership; it cannot use shared collection.');
  if(!pool.configId.equals(s.cpmmConfig)||!deriveCpmmPool(s.cpmm,s.cpmmConfig,input.mint,s.c.quote).equals(s.lineage.cpmmPool)||!((pool.mintA.equals(input.mint)&&pool.mintB.equals(s.c.quote))||(pool.mintB.equals(input.mint)&&pool.mintA.equals(s.c.quote))))throw Error('CPMM pool does not match this token and configuration.');
  if(!pool.mintProgramA.equals(TOKEN_PROGRAM_ID)||!pool.mintProgramB.equals(TOKEN_PROGRAM_ID))throw Error('Shared fee collection supports classic SPL Token pools only.');
  const ata=(mint:PublicKey,owner:PublicKey)=>getAssociatedTokenAddressSync(mint,owner,true);
- const instruction=buildInstruction(input.programId,'collect_shared_cpmm_fees',{
- payer:input.payer,config:s.config,lineage:deriveLineagePda(input.programId,input.mint),mint:input.mint,creator:s.lineage.creator,treasury:s.treasury,fee_authority:s.authority,distribution:deriveFeeDistributionPda(input.programId,input.mint),pool_state:s.lineage.cpmmPool,amm_config:s.cpmmConfig,cpmm_authority:getPdaPoolAuthority(s.cpmm).publicKey,vault_0:pool.vaultA,vault_1:pool.vaultB,mint_0:pool.mintA,mint_1:pool.mintB,fee_0:ata(pool.mintA,s.authority),fee_1:ata(pool.mintB,s.authority),creator_0:ata(pool.mintA,s.lineage.creator),creator_1:ata(pool.mintB,s.lineage.creator),treasury_0:ata(pool.mintA,s.treasury),treasury_1:ata(pool.mintB,s.treasury),creator_fee_share:creatorFeeSharePda(s.cpmm,s.authority,s.cpmmConfig),cpmm_program:s.cpmm,token_program:TOKEN_PROGRAM_ID,associated_token_program:ASSOCIATED_TOKEN_PROGRAM_ID,system_program:SYSTEM_PROGRAM_ID});
+ const instruction=buildInstruction(input.programId,claimCreator?'claim_shared_creator_fees':'collect_shared_cpmm_fees',{
+ payer:input.payer,config:s.config,lineage:deriveLineagePda(input.programId,input.mint),mint:input.mint,creator:s.lineage.creator,treasury:s.treasury,fee_authority:s.authority,distribution:deriveFeeDistributionPda(input.programId,input.mint),creator_escrow_authority:deriveCreatorEscrowPda(input.programId,input.mint),escrow_0:ata(pool.mintA,deriveCreatorEscrowPda(input.programId,input.mint)),escrow_1:ata(pool.mintB,deriveCreatorEscrowPda(input.programId,input.mint)),pool_state:s.lineage.cpmmPool,amm_config:s.cpmmConfig,cpmm_authority:getPdaPoolAuthority(s.cpmm).publicKey,vault_0:pool.vaultA,vault_1:pool.vaultB,mint_0:pool.mintA,mint_1:pool.mintB,fee_0:ata(pool.mintA,s.authority),fee_1:ata(pool.mintB,s.authority),creator_0:ata(pool.mintA,s.lineage.creator),creator_1:ata(pool.mintB,s.lineage.creator),treasury_0:ata(pool.mintA,s.treasury),treasury_1:ata(pool.mintB,s.treasury),creator_fee_share:creatorFeeSharePda(s.cpmm,s.authority,s.cpmmConfig),cpmm_program:s.cpmm,token_program:TOKEN_PROGRAM_ID,associated_token_program:ASSOCIATED_TOKEN_PROGRAM_ID,system_program:SYSTEM_PROGRAM_ID});
  return prepare(connection,input,instruction);
 }
+export async function buildSharedCreatorFeeClaim(connection:Connection,input:FeeInput){return buildSharedCpmmFeeCollection(connection,input,true);}
 export async function buildCurveCreatorFeeClaim(connection:Connection,input:FeeInput){
- const s=await state(connection,input),account=await connection.getAccountInfo(s.lineage.launchPool,'confirmed');
+ const s=await state(connection,input);if(!input.payer.equals(s.lineage.creator))throw Error('Only the creator may claim curve fees.');
+ const account=await connection.getAccountInfo(s.lineage.launchPool,'confirmed');
  if(!account?.owner.equals(s.c.launchpad))throw Error('Registered LaunchLab pool missing.');
  const pool=decodeLaunchPool(account.data);
  if(!new PublicKey(pool.creator).equals(s.authority)||!new PublicKey(pool.baseMint).equals(input.mint))throw Error('This token retains legacy creator fee ownership.');
@@ -69,9 +72,9 @@ export async function buildTreasuryCurveFeeClaim(connection:Connection,input:Fee
 export async function readPendingFees(connection:Connection,input:FeeInput){
  const s=await state(connection,input);
  const ata=(mint:PublicKey)=>getAssociatedTokenAddressSync(mint,s.authority,true);
- const [curve,pool,heldQuote,heldBase]=await connection.getMultipleAccountsInfo([getPdaCreatorVault(s.c.launchpad,s.authority,s.c.quote).publicKey,s.lineage.cpmmPool,ata(s.c.quote),ata(input.mint)],'confirmed');
+ const [curve,pool,heldQuote,heldBase,escrowQuote,escrowBase]=await connection.getMultipleAccountsInfo([getPdaCreatorVault(s.c.launchpad,s.authority,s.c.quote).publicKey,s.lineage.cpmmPool,ata(s.c.quote),ata(input.mint),getAssociatedTokenAddressSync(s.c.quote,deriveCreatorEscrowPda(input.programId,input.mint),true),getAssociatedTokenAddressSync(input.mint,deriveCreatorEscrowPda(input.programId,input.mint),true)],'confirmed');
  const amount=(account:typeof curve)=>account?.owner.equals(TOKEN_PROGRAM_ID)&&account.data.length>=165?account.data.readBigUInt64LE(64):0n;
  let cpmm=amount(heldQuote)+amount(heldBase);
  if(pool?.owner.equals(s.cpmm)){const p=CpmmPoolInfoLayout.decode(pool.data);if(!p.poolCreator.equals(s.authority))throw Error('Legacy CPMM creator.');cpmm+=BigInt(p.creatorFeesMintA.toString())+BigInt(p.creatorFeesMintB.toString());}
- return {curve:amount(curve),cpmm};
+ return {curve:amount(curve),cpmm,creatorEscrow:amount(escrowQuote)+amount(escrowBase)};
 }

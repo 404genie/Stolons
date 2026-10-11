@@ -6,7 +6,7 @@ import {readFile} from 'node:fs/promises';
 import {Keypair,PublicKey,TransactionMessage} from '@solana/web3.js';
 import {fixture} from '../helpers/reproduction-fixture.mjs';
 import {deriveConfigPda,deriveLineagePda,deriveFeeAuthorityPda,deriveFeeDistributionPda,decodeLineage,ACCOUNT_SCHEMAS} from '../../sdk/dist/index.js';
-import {splitFeeCollection,buildSharedCpmmFeeCollection,buildCurveCreatorFeeClaim,buildTreasuryCurveFeeClaim,creatorFeeSharePda} from '../../sdk/dist/fees.js';
+import {splitFeeCollection,buildSharedCpmmFeeCollection,buildSharedCreatorFeeClaim,buildCurveCreatorFeeClaim,buildTreasuryCurveFeeClaim,creatorFeeSharePda} from '../../sdk/dist/fees.js';
 import {buildDevnetChildLaunch} from '../../sdk/dist/devnet-launch.js';
 import {runFeeCollection} from '../../services/keeper/run-fees.mjs';
 function sharedFixture(){
@@ -41,10 +41,11 @@ test('CPMM fee builder binds original creator, treasury, fee authority and lates
  f.cpmm.data.set(Keypair.generate().publicKey.toBytes(),40);await assert.rejects(buildSharedCpmmFeeCollection(f.connection,f.input),/legacy/);
 });
 test('curve creator and treasury claims enforce distinct signed roles and registered fee ownership',async()=>{
- const f=sharedFixture();await buildCurveCreatorFeeClaim(f.connection,f.input);
+ const f=sharedFixture();await assert.rejects(buildCurveCreatorFeeClaim(f.connection,f.input),/Only the creator/);await buildCurveCreatorFeeClaim(f.connection,{...f.input,payer:f.lineage.creator});
+ await assert.rejects(buildSharedCreatorFeeClaim(f.connection,f.input),/Only the creator/);await buildSharedCreatorFeeClaim(f.connection,{...f.input,payer:f.lineage.creator});
  await assert.rejects(buildTreasuryCurveFeeClaim(f.connection,f.input),/Only the configured treasury/);
  const treasury=new PublicKey(f.config.subarray(40,72));const result=await buildTreasuryCurveFeeClaim(f.connection,{...f.input,payer:treasury});assert.ok(result.transaction);
- f.accounts.get(f.lineage.launchPool.toBase58()).data.set(f.owner.toBytes(),333);await assert.rejects(buildCurveCreatorFeeClaim(f.connection,f.input),/legacy/);
+ f.accounts.get(f.lineage.launchPool.toBase58()).data.set(f.owner.toBytes(),333);await assert.rejects(buildCurveCreatorFeeClaim(f.connection,{...f.input,payer:f.lineage.creator}),/legacy/);
 });
 test('fee collection ABI carries mandatory share account after system program and Rust offsets match SDK layout',async()=>{
  const source=await readFile(new URL('../../programs/stolons/src/instructions.rs',import.meta.url),'utf8');
@@ -59,5 +60,7 @@ test('fee keeper refuses authority payer, cross-network and failed simulation be
  await assert.rejects(runFeeCollection(f.connection,f.program,f.mint,{cluster:'mainnet-beta',payerPublicKey:f.payer,log:()=>{}}),/cluster mismatch/);
  await assert.rejects(runFeeCollection(f.connection,f.program,f.mint,{cluster:'devnet',payerPublicKey:new PublicKey(f.config.subarray(40,72)),log:()=>{}}),/separate/);
  const pending=Buffer.alloc(165);pending.writeBigUInt64LE(1n,64);f.accounts.set(getPdaCreatorVault(new PublicKey(f.config.subarray(72,104)),f.authority,new PublicKey(f.config.subarray(200,232))).publicKey.toBase58(),{owner:new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'),data:pending});
+ assert.deepEqual(await runFeeCollection(f.connection,f.program,f.mint,{cluster:'devnet',payerPublicKey:f.payer,log:()=>{}}),{status:'empty',transactions:[]});
+ f.cpmm.data.writeBigUInt64LE(23n,397);
  const payer={publicKey:f.payer,secretKey:new Uint8Array()};await assert.rejects(runFeeCollection(f.connection,f.program,f.mint,{cluster:'devnet',table:f.table.key,payer,apply:true,log:()=>{}}),/simulation failed/);
 });

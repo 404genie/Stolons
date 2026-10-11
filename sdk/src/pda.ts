@@ -92,3 +92,5 @@ export function deriveTokenAccounts(programId: PublicKey, mint: PublicKey): Pick
 
 export function deriveFeeAuthorityPda(programId:PublicKey,mint:PublicKey):PublicKey { return findPda(programId,seed(SEEDS.feeAuthority),mint.toBytes()); }
 export function deriveFeeDistributionPda(programId:PublicKey,mint:PublicKey):PublicKey { return findPda(programId,seed(SEEDS.feeDistribution),mint.toBytes()); }
+
+export function deriveCreatorEscrowPda(programId:PublicKey,mint:PublicKey):PublicKey { return findPda(programId,seed("creator_escrow"),mint.toBytes()); }

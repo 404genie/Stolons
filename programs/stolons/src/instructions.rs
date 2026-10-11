@@ -1490,6 +1490,13 @@ pub struct CollectSharedCpmmFees<'info> {
     pub fee_authority: UncheckedAccount<'info>,
     #[account(init_if_needed, payer = payer, space = FeeDistribution::SPACE, seeds = [FEE_DISTRIBUTION_SEED, mint.key().as_ref()], bump)]
     pub distribution: Box<Account<'info, FeeDistribution>>,
+    /// CHECK: per-token escrow authority, restricted to this program's creator claim instruction.
+    #[account(seeds = [CREATOR_ESCROW_SEED, mint.key().as_ref()], bump)]
+    pub creator_escrow_authority: UncheckedAccount<'info>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_0, associated_token::authority = creator_escrow_authority)]
+    pub escrow_0: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_1, associated_token::authority = creator_escrow_authority)]
+    pub escrow_1: Box<Account<'info, TokenAccount>>,
     /// CHECK: registered deterministic CPMM pool checked in handler and by CPMM CPI.
     #[account(mut, address = lineage.cpmm_pool, owner = config.cpmm_program)]
     pub pool_state: UncheckedAccount<'info>,
@@ -1529,31 +1536,35 @@ pub struct CollectSharedCpmmFees<'info> {
 }
 
 pub fn collect_shared_cpmm_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<()> {
-    require!(!ctx.accounts.config.paused, StolonsError::Paused);
-    require!(ctx.accounts.config.version == 2, StolonsError::InvalidConfiguration);
-    verify_cpmm_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config, ctx.accounts.mint.key(), ctx.accounts.config.quote_mint)?;
-    require!(ctx.accounts.creator.key() != ctx.accounts.fee_authority.key() && ctx.accounts.treasury.key() != ctx.accounts.fee_authority.key(), StolonsError::InvalidConfiguration);
+    settle_cpmm_fees(ctx.accounts, ctx.bumps.fee_authority, ctx.bumps.distribution)
+}
+
+fn settle_cpmm_fees<'info>(accounts: &mut CollectSharedCpmmFees<'info>, fee_bump: u8, distribution_bump: u8) -> Result<()> {
+    require!(!accounts.config.paused, StolonsError::Paused);
+    require!(accounts.config.version == 2, StolonsError::InvalidConfiguration);
+    verify_cpmm_pool(&accounts.pool_state.to_account_info(), &accounts.config, accounts.mint.key(), accounts.config.quote_mint)?;
+    require!(accounts.creator.key() != accounts.fee_authority.key() && accounts.treasury.key() != accounts.fee_authority.key(), StolonsError::InvalidConfiguration);
     let (collected_0, collected_1) = {
-        let data = ctx.accounts.pool_state.try_borrow_data()?;
+        let data = accounts.pool_state.try_borrow_data()?;
         let key_at = |offset: usize| -> Result<Pubkey> {
             Ok(Pubkey::new_from_array(data.get(offset..offset+32).ok_or(StolonsError::InvalidCpmmPool)?.try_into().map_err(|_| error!(StolonsError::InvalidCpmmPool))?))
         };
-        require_keys_eq!(key_at(40)?, ctx.accounts.fee_authority.key(), StolonsError::InvalidCpmmPool);
-        require_keys_eq!(key_at(72)?, ctx.accounts.vault_0.key(), StolonsError::InvalidCpmmPool);
-        require_keys_eq!(key_at(104)?, ctx.accounts.vault_1.key(), StolonsError::InvalidCpmmPool);
-        require_keys_eq!(key_at(168)?, ctx.accounts.mint_0.key(), StolonsError::InvalidCpmmPool);
-        require_keys_eq!(key_at(200)?, ctx.accounts.mint_1.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(40)?, accounts.fee_authority.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(72)?, accounts.vault_0.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(104)?, accounts.vault_1.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(168)?, accounts.mint_0.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(200)?, accounts.mint_1.key(), StolonsError::InvalidCpmmPool);
         let amount_at = |offset: usize| -> Result<u64> {
             Ok(u64::from_le_bytes(data.get(offset..offset+8).ok_or(StolonsError::InvalidCpmmPool)?.try_into().map_err(|_| error!(StolonsError::InvalidCpmmPool))?))
         };
         (amount_at(397)?, amount_at(405)?)
     };
-    let mint = ctx.accounts.mint.key();
-    let bump = [ctx.bumps.fee_authority];
+    let mint = accounts.mint.key();
+    let bump = [fee_bump];
     let seeds: &[&[u8]] = &[FEE_AUTHORITY_SEED, mint.as_ref(), &bump];
     if collected_0 > 0 || collected_1 > 0 {
         // Current Raydium collection ABI: mandatory CreatorFeeShare appended last.
-        let a = &ctx.accounts;
+        let a = &accounts;
         let infos = vec![a.fee_authority.to_account_info(), a.cpmm_authority.to_account_info(), a.pool_state.to_account_info(), a.amm_config.to_account_info(), a.vault_0.to_account_info(), a.vault_1.to_account_info(), a.mint_0.to_account_info(), a.mint_1.to_account_info(), a.fee_0.to_account_info(), a.fee_1.to_account_info(), a.token_program.to_account_info(), a.token_program.to_account_info(), a.associated_token_program.to_account_info(), a.system_program.to_account_info(), a.creator_fee_share.to_account_info()];
         let metas = infos.iter().enumerate().map(|(i, account)| {
             let writable = matches!(i, 0 | 2 | 4 | 5 | 8 | 9);
@@ -1562,21 +1573,37 @@ pub fn collect_shared_cpmm_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<(
         let ix = Instruction { program_id: a.cpmm_program.key(), accounts: metas, data: anchor_ix_discriminator(b"global:collect_creator_fee").to_vec() };
         let mut all_infos = infos; all_infos.push(a.cpmm_program.to_account_info());
         invoke_signed(&ix, &all_infos, &[seeds])?;
-        ctx.accounts.fee_0.reload()?; ctx.accounts.fee_1.reload()?;
+        accounts.fee_0.reload()?; accounts.fee_1.reload()?;
     }
     // Include funds collected directly via Raydium's permissionless path. Each
     // token has its own authority, so that path cannot mix different creators.
-    let a0 = ctx.accounts.fee_0.amount; let a1 = ctx.accounts.fee_1.amount;
-    let d = &mut ctx.accounts.distribution;
-    if d.mint == Pubkey::default() { d.mint = mint; d.pool = ctx.accounts.pool_state.key(); d.bump = ctx.bumps.distribution; }
+    let a0 = accounts.fee_0.amount; let a1 = accounts.fee_1.amount;
+    let d = &mut accounts.distribution;
+    if d.mint == Pubkey::default() { d.mint = mint; d.pool = accounts.pool_state.key(); d.bump = distribution_bump; }
     require_keys_eq!(d.mint, mint, StolonsError::InvalidMint);
-    require_keys_eq!(d.pool, ctx.accounts.pool_state.key(), StolonsError::InvalidCpmmPool);
+    require_keys_eq!(d.pool, accounts.pool_state.key(), StolonsError::InvalidCpmmPool);
     let (total0, creator0, treasury0) = crate::math::split_fee_collection(d.collected_0, a0)?;
     let (total1, creator1, treasury1) = crate::math::split_fee_collection(d.collected_1, a1)?;
     d.collected_0 = total0; d.collected_1 = total1;
-    let a = &ctx.accounts;
-    for (source, destination, amount) in [(&a.fee_0, &a.creator_0, creator0), (&a.fee_0, &a.treasury_0, treasury0), (&a.fee_1, &a.creator_1, creator1), (&a.fee_1, &a.treasury_1, treasury1)] {
+    let a = &accounts;
+    for (source, destination, amount) in [(&a.fee_0, &a.escrow_0, creator0), (&a.fee_0, &a.treasury_0, treasury0), (&a.fee_1, &a.escrow_1, creator1), (&a.fee_1, &a.treasury_1, treasury1)] {
         if amount > 0 { token::transfer(CpiContext::new_with_signer(a.token_program.to_account_info(), Transfer { from: source.to_account_info(), to: destination.to_account_info(), authority: a.fee_authority.to_account_info() }, &[seeds]), amount)?; }
+    }
+    Ok(())
+}
+
+pub fn claim_shared_creator_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<()> {
+    require_keys_eq!(ctx.accounts.payer.key(), ctx.accounts.lineage.creator, StolonsError::InvalidConfiguration);
+    // First settle fresh fees: treasury is paid, creator funds enter isolated escrow.
+    settle_cpmm_fees(ctx.accounts, ctx.bumps.fee_authority, ctx.bumps.distribution)?;
+    ctx.accounts.escrow_0.reload()?;
+    ctx.accounts.escrow_1.reload()?;
+    let mint = ctx.accounts.mint.key();
+    let bump = [ctx.bumps.creator_escrow_authority];
+    let seeds: &[&[u8]] = &[CREATOR_ESCROW_SEED, mint.as_ref(), &bump];
+    let a = &ctx.accounts;
+    for (source, destination) in [(&a.escrow_0, &a.creator_0), (&a.escrow_1, &a.creator_1)] {
+        if source.amount > 0 { token::transfer(CpiContext::new_with_signer(a.token_program.to_account_info(), Transfer { from: source.to_account_info(), to: destination.to_account_info(), authority: a.creator_escrow_authority.to_account_info() }, &[seeds]), source.amount)?; }
     }
     Ok(())
 }
@@ -1619,6 +1646,7 @@ pub struct ClaimCurveCreatorFees<'info> {
     pub system_program: Program<'info, System>,
 }
 pub fn claim_curve_creator_fees(ctx: Context<ClaimCurveCreatorFees>) -> Result<()> {
+    require_keys_eq!(ctx.accounts.payer.key(), ctx.accounts.lineage.creator, StolonsError::InvalidConfiguration);
     require!(!ctx.accounts.config.paused, StolonsError::Paused);
     let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config)?;
     require_keys_eq!(pool.creator, ctx.accounts.fee_authority.key(), StolonsError::InvalidLaunchPool);

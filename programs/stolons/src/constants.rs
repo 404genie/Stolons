@@ -73,3 +73,5 @@ pub const CPMM_SWAP_DISABLED_BIT: u8 = 1 << 2;
 pub const FEE_AUTHORITY_SEED: &[u8] = b"fee_authority";
 pub const FEE_DISTRIBUTION_SEED: &[u8] = b"fee_distribution";
 pub const PLATFORM_CP_CREATOR_OFFSET: usize = 800;
+
+pub const CREATOR_ESCROW_SEED: &[u8] = b"creator_escrow";
