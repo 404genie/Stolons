@@ -1,4 +1,5 @@
-import {readRetryFetch,useHttpConfirmation} from './rpc.mjs';
+import {TradeSubmittedError} from '../../sdk/dist/devnet-trade.js';
+import {readRetryFetch,useHttpConfirmation,runScanLoop} from './rpc.mjs';
 import {readFile} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair} from '@solana/web3.js';
 import {assertCluster,decodeLineage} from '../../sdk/dist/index.js';
@@ -26,4 +27,4 @@ for(const mint of mints){
 
 }
 let stopped=false;process.on("SIGTERM",()=>{stopped=true});process.on("SIGINT",()=>{stopped=true});
-do{await scan();if(!flags.includes("--watch")||stopped)break;for(let i=0;i<2&&!stopped;i++)await new Promise(resolve=>setTimeout(resolve,30000));}while(!stopped);
+await runScanLoop(scan,{watch:flags.includes('--watch'),stopped:()=>stopped,isUncertain:error=>error instanceof TradeSubmittedError});

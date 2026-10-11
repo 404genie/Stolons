@@ -1,13 +1,13 @@
 import {decodeLaunchConfig} from '../../sdk/dist/launch-validation.js';
 // Dedicated platform-vault sweep. Never give this treasury key to the fee keeper.
-import {readRetryFetch,useHttpConfirmation} from './rpc.mjs';
+import {readRetryFetch,useHttpConfirmation,runScanLoop} from './rpc.mjs';
 import {readFile} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair} from '@solana/web3.js';
 import {createRequire} from 'node:module';
 const {getPdaPlatformVault}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
 import {assertCluster,deriveConfigPda} from '../../sdk/dist/index.js';
 import {buildTreasuryCurveFeeClaim} from '../../sdk/dist/fees.js';
-import {sendDevnetTrade} from '../../sdk/dist/devnet-trade.js';
+import {sendDevnetTrade,TradeSubmittedError} from '../../sdk/dist/devnet-trade.js';
 const flags=process.argv.slice(2);if(flags.some(f=>!['--apply','--once'].includes(f)))throw Error('Use treasury.mjs [--apply] [--once]');
 const apply=flags.includes('--apply'),cluster=process.env.KEEPER_CLUSTER,program=new PublicKey(process.env.KEEPER_PROGRAM_ID),connection=new Connection(process.env.KEEPER_RPC_URL,{commitment:'confirmed',disableRetryOnRateLimit:true,fetch:readRetryFetch()});
 useHttpConfirmation(connection);
@@ -25,5 +25,5 @@ async function scan(){
  if(!apply){console.log('Treasury sweep simulation passed; no transaction sent.');return;}
  console.log('Treasury sweep confirmed:',await sendDevnetTrade(connection,prepared,async tx=>{tx.sign([signer]);return tx;}));
 }
-// Any error, including uncertain submission, exits for operator review.
-do {await scan();if(!apply||flags.includes('--once'))break;await new Promise(resolve=>setTimeout(resolve,30000));}while(true);
+let stopped=false;process.on('SIGTERM',()=>{stopped=true});process.on('SIGINT',()=>{stopped=true});
+await runScanLoop(scan,{watch:apply&&!flags.includes('--once'),interval:30000,stopped:()=>stopped,isUncertain:error=>error instanceof TradeSubmittedError});
