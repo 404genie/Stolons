@@ -1,12 +1,15 @@
+import {decodeLaunchConfig} from '../../sdk/dist/launch-validation.js';
 // Dedicated platform-vault sweep. Never give this treasury key to the fee keeper.
+import {readRetryFetch} from './rpc.mjs';
 import {readFile} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair} from '@solana/web3.js';
-import {getPdaPlatformVault} from '@raydium-io/raydium-sdk-v2';
-import {assertCluster,deriveConfigPda,decodeLaunchConfig} from '../../sdk/dist/index.js';
+import {createRequire} from 'node:module';
+const {getPdaPlatformVault}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
+import {assertCluster,deriveConfigPda} from '../../sdk/dist/index.js';
 import {buildTreasuryCurveFeeClaim} from '../../sdk/dist/fees.js';
 import {sendDevnetTrade} from '../../sdk/dist/devnet-trade.js';
 const flags=process.argv.slice(2);if(flags.some(f=>!['--apply','--once'].includes(f)))throw Error('Use treasury.mjs [--apply] [--once]');
-const apply=flags.includes('--apply'),cluster=process.env.KEEPER_CLUSTER,program=new PublicKey(process.env.KEEPER_PROGRAM_ID),connection=new Connection(process.env.KEEPER_RPC_URL,'confirmed');
+const apply=flags.includes('--apply'),cluster=process.env.KEEPER_CLUSTER,program=new PublicKey(process.env.KEEPER_PROGRAM_ID),connection=new Connection(process.env.KEEPER_RPC_URL,{commitment:'confirmed',disableRetryOnRateLimit:true,fetch:readRetryFetch()});
 await assertCluster(connection,cluster);
 const signer=apply?Keypair.fromSecretKey(Uint8Array.from(JSON.parse(await readFile(process.env.TREASURY_KEYPAIR_PATH,'utf8')))):null;
 const treasury=signer?.publicKey??new PublicKey(process.env.TREASURY_WALLET);
