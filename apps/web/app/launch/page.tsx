@@ -49,11 +49,18 @@ export default function LaunchPage() {
       const creator = wallet.publicKey;
       const imageHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await image.arrayBuffer())), (byte) => byte.toString(16).padStart(2, "0")).join("");
       const timestamp = Date.now();
-      const approval = await wallet.signMessage(new TextEncoder().encode(metadataUploadMessage(draft, imageHash, creator.toBase58(), window.location.origin, timestamp)));
+      const signedOrigin = window.location.origin;
+      const signedMessage = new TextEncoder().encode(metadataUploadMessage(draft, imageHash, creator.toBase58(), signedOrigin, timestamp));
+      const approval = await wallet.signMessage(signedMessage);
+      const approvalKey = await crypto.subtle.importKey("raw", new Uint8Array(creator.toBytes()), "Ed25519", false, ["verify"]);
+      if (!await crypto.subtle.verify("Ed25519", approvalKey, new Uint8Array(approval), signedMessage)) {
+        throw new Error("Your wallet signed with a different account or changed the approval message. Reconnect your wallet and preview again.");
+      }
       const form = new FormData();
       for (const [key, value] of Object.entries(draft)) form.set(key, value);
       form.set("image", image); form.set("wallet", creator.toBase58()); form.set("timestamp", String(timestamp));
       form.set("signature", btoa(String.fromCharCode(...approval)));
+      form.set("signedOrigin", signedOrigin);
       setMessage("Saving your image and token details…");
       const response = await fetch("/api/metadata", { method: "POST", body: form, signal: AbortSignal.timeout(30_000) });
       const uploaded = await response.json() as { metadataUri?: string; imageUrl?: string; error?: string };
