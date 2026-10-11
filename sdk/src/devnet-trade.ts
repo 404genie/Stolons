@@ -53,9 +53,9 @@ export async function quoteDevnetTrade(connection: Connection, input: TradeInput
   const fees = { poolInfo: pool, protocolFeeRate: config.tradeFeeRate, platformFeeRate: platform.feeRate, creatorFeeRate: platform.creatorFeeRate, curveType: config.curveType, shareFeeRate: new BN('0'), transferFeeConfigA: undefined, transferFeeConfigB: undefined, slot: 0 };
   const result = input.side === 'buy' ? Curve.buyExactIn({ ...fees, amountB: amount }) : Curve.sellExactIn({ ...fees, amountA: amount });
   const actualInput = BigInt((input.side === 'buy' ? result.amountB : result.amountA.amount).toString());
-  if (actualInput !== input.amount) throw new Error('This amount exceeds the remaining curve liquidity. Try a smaller trade.');
+  if (actualInput <= 0n || actualInput > input.amount || (input.side === 'sell' && actualInput !== input.amount)) throw new Error('This amount exceeds the remaining curve liquidity. Try a smaller trade.');
   const output = BigInt((input.side === 'buy' ? result.amountA.amount : result.amountB).toString());
-  return { input, output, minimum: tradeMinimum(output, input.slippageBps), quotedAt: Date.now() };
+  return { input: { ...input, amount: actualInput }, requestedAmount: input.amount, capped: actualInput < input.amount, output, minimum: tradeMinimum(output, input.slippageBps), quotedAt: Date.now() };
 }
 export type TradeQuote = Awaited<ReturnType<typeof quoteDevnetTrade>>;
 export async function buildDevnetTrade(connection: Connection, quote: TradeQuote) {
@@ -63,7 +63,7 @@ export async function buildDevnetTrade(connection: Connection, quote: TradeQuote
   const fresh = await quoteDevnetTrade(connection, quote.input);
   if (fresh.output < quote.minimum) throw new Error('Price moved beyond your slippage limit. Preview again.');
   const { c, poolId, pool, config } = await readMarket(connection, quote.input);
-  const { owner, mint, side, amount } = quote.input;
+  const { owner, mint, side, amount } = fresh.input;
   const tokenAccount = getAssociatedTokenAddressSync(mint, owner);
   if (side === 'sell') {
     const balance = await connection.getTokenAccountBalance(tokenAccount, 'confirmed').catch(() => null);
@@ -132,4 +132,15 @@ export async function sendDevnetTrade(connection: Connection, prepared: Prepared
   } catch (cause) {
     throw new TradeSubmittedError(signature, `${cause instanceof Error ? cause.message : 'Confirmation unavailable'}. Check the transaction before placing another trade.`);
   }
+}
+
+export function sellPercentage(balance: bigint, percent: number): bigint {
+  if (![25, 50, 100].includes(percent) || balance < 0n) throw new Error('Invalid sell percentage.');
+  return balance * BigInt(percent) / 100n;
+}
+export async function readTradeBalance(connection: Connection, mint: PublicKey, owner: PublicKey): Promise<bigint> {
+  const account = await connection.getAccountInfo(getAssociatedTokenAddressSync(mint, owner), 'confirmed');
+  if (!account) return 0n;
+  if (!account.owner.equals(TOKEN_PROGRAM_ID) || account.data.length < ACCOUNT_SIZE || !new PublicKey(account.data.subarray(0,32)).equals(mint) || !new PublicKey(account.data.subarray(32,64)).equals(owner)) throw new Error('Unexpected wallet token account.');
+  return account.data.readBigUInt64LE(64);
 }

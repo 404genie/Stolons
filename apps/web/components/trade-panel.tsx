@@ -20,10 +20,37 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [signature, setSignature] = useState("");
+  const [balance, setBalance] = useState<bigint | null>(null);
+  const [balanceText, setBalanceText] = useState("");
+  const [balanceRefresh, setBalanceRefresh] = useState(0);
+  const [spendText, setSpendText] = useState("");
   const [uncertain, setUncertain] = useState(false);
 
   useEffect(() => { setQuote(null); setError(""); }, [amount, side, slippage, walletAddress, mint]);
   useEffect(() => { setSignature(""); setUncertain(false); setMessage(""); }, [mint]);
+
+  useEffect(() => {
+    let cancelled = false; setBalance(null); setBalanceText('');
+    if (!walletAddress) return;
+    (async () => { try {
+      const api = await import('@stolons/sdk/devnet-trade');
+      const value = await api.readTradeBalance(connection, new PublicKey(mint), new PublicKey(walletAddress));
+      if (!cancelled) { setBalance(value); setBalanceText(api.formatTradeAmount(value, 6)); }
+    } catch { /* Unavailable balances disable shortcuts; manual sells are rechecked. */ } })();
+    return () => { cancelled = true; };
+  }, [connection, mint, walletAddress, balanceRefresh]);
+  async function quickSell(percent: number) {
+    if (!walletAddress) return;
+    setBusy(true); setError('');
+    try {
+      const api = await import('@stolons/sdk/devnet-trade');
+      const current = await api.readTradeBalance(connection, new PublicKey(mint), new PublicKey(walletAddress));
+      const value = api.sellPercentage(current, percent);
+      if (!value) throw new Error('No tokens available for this sell amount.');
+      setBalance(current); setBalanceText(api.formatTradeAmount(current, 6)); setAmount(api.formatTradeAmount(value, 6)); setQuote(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not read your balance.'); }
+    finally { setBusy(false); }
+  }
 
   async function preview(event: FormEvent) {
     event.preventDefault();
@@ -37,6 +64,7 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
       await api.simulateDevnetTrade(connection, prepared);
       setOutputText(api.formatTradeAmount(next.output, side === "buy" ? 6 : 9));
       setMinimumText(api.formatTradeAmount(next.minimum, side === "buy" ? 6 : 9));
+      setSpendText(api.formatTradeAmount(next.input.amount, 9));
       setQuote(next); setMessage("Simulation passed. Review the minimum received, then confirm within 60 seconds.");
     } catch (cause) { setMessage(""); setError(cause instanceof Error ? cause.message : "Could not preview this trade."); }
     finally { setBusy(false); }
@@ -49,7 +77,7 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
       const api = await import("@stolons/sdk/devnet-trade");
       const prepared = await api.buildDevnetTrade(connection, quote);
       const tx = await api.sendDevnetTrade(connection, prepared, tx => wallet.signTransaction!(tx));
-      setSignature(tx); setQuote(null); setAmount(""); setMessage("Trade confirmed on devnet.");
+      setSignature(tx); setQuote(null); setAmount(""); setBalanceRefresh(value => value + 1); setMessage("Trade confirmed on devnet.");
     } catch (cause) {
       setQuote(null); setMessage("");
       const api = await import("@stolons/sdk/devnet-trade");
@@ -70,12 +98,14 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
           </div>
           <label className="label" htmlFor="trade-amount">{side === "buy" ? "SOL to spend" : "Tokens to sell"}</label>
           <input id="trade-amount" inputMode="decimal" placeholder={side === "buy" ? "0.01" : "1000"} value={amount} onChange={event => setAmount(event.target.value)} required />
+          {side === "sell" && <><p className="small">Balance: {balance === null ? "Unavailable" : `${balanceText} tokens`}</p><div className="actions" role="group" aria-label="Sell percentage">{[25, 50, 100].map(percent => <button key={percent} className="button compact" type="button" disabled={balance === null || balance === 0n} onClick={() => quickSell(percent)}>{percent}%</button>)}</div></>}
           <label className="label" htmlFor="trade-slippage">Slippage (%)</label>
           <input id="trade-slippage" inputMode="decimal" value={slippage} onChange={event => setSlippage(event.target.value)} required />
           <button className="button primary" type="submit" disabled={!wallet.publicKey}>{busy ? "Checking…" : "Preview trade →"}</button>
         </fieldset>
       </form>
       {quote && quote.input.owner.toBase58() === walletAddress && quote.input.mint.toBase58() === mint && <div className="notice">
+        {quote.input.side === "buy" && <p>SOL spend: {spendText}{quote.capped ? " · Limited to the remaining curve allocation. Excess SOL stays in your wallet." : ""}</p>}
         <p>Estimated received: {outputText} {side === "buy" ? "tokens" : "SOL"}</p>
         <p>Minimum received: {minimumText} {side === "buy" ? "tokens" : "SOL"}</p>
         <button className="button primary" type="button" disabled={busy || !wallet.signTransaction} onClick={trade}>Confirm {side} ↗</button>

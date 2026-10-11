@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { PublicKey, Keypair, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } from '@solana/web3.js';
-import { quoteDevnetTrade, buildDevnetTrade, sendDevnetTrade, TradeSubmittedError, parseTradeAmount, formatTradeAmount, tradeMinimum } from '../../sdk/dist/devnet-trade.js';
+import { quoteDevnetTrade, buildDevnetTrade, sendDevnetTrade, TradeSubmittedError, parseTradeAmount, formatTradeAmount, tradeMinimum, sellPercentage } from '../../sdk/dist/devnet-trade.js';
 import { DEVNET_GENESIS_HASH } from '../../sdk/dist/launch-validation.js';
 const fixture = JSON.parse(await readFile(new URL('../fixtures/trade-devnet.json', import.meta.url)));
 function market({ post = false, balance = fixture.buyOutput, moved = false, graduated = false } = {}) {
@@ -101,4 +101,19 @@ test('wallet-added transfers and excessive priority fees are rejected', async ()
     await assert.rejects(sendDevnetTrade(f.connection, f.prepared, async tx => { const message = TransactionMessage.decompile(tx.message); message.instructions.push(instruction); const returned = new VersionedTransaction(message.compileToV0Message()); returned.sign([owner]); return returned; }), /changed trade instructions|excessive priority fee/);
     assert.equal(f.calls.sent, 0);
   }
+});
+
+test('oversized buys cap SOL input at curve completion rather than rejecting', async () => {
+  const f = market(); f.input.amount = 2000000000n;
+  const quote = await quoteDevnetTrade(f.connection, f.input);
+  assert.equal(quote.capped, true); assert.equal(quote.requestedAmount, 2000000000n);
+  assert.ok(quote.input.amount < quote.requestedAmount); assert.ok(quote.input.amount > 0n);
+  const prepared = await buildDevnetTrade(f.connection, quote);
+  const swap = TransactionMessage.decompile(prepared.transaction.message).instructions.find(i => i.keys.length === 18);
+  assert.ok(swap.data.readBigUInt64LE(8) <= quote.input.amount);
+  assert.equal(swap.data.readBigUInt64LE(16), quote.minimum);
+});
+test('sell shortcuts round down integer atoms and 100% leaves no dust', () => {
+  assert.equal(sellPercentage(101n, 25), 25n); assert.equal(sellPercentage(101n, 50), 50n); assert.equal(sellPercentage(101n, 100), 101n);
+  assert.equal(sellPercentage(0n, 100), 0n); assert.throws(() => sellPercentage(1n, 200));
 });
