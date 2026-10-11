@@ -12,6 +12,6 @@ if(idl.address!==process.argv[2]) throw new Error('IDL does not match the deploy
 JS
 solana balance --url "$DEVNET_RPC" --keypair "$DEVNET_WALLET"
 solana program deploy target/deploy/stolons.so --program-id "$DEVNET_PROGRAM_KEY" --url "$DEVNET_RPC" --keypair "$DEVNET_WALLET"
-solana program show "$program_id" --url "$DEVNET_RPC" > target/devnet/program-show.txt
+solana program show "$program_id" --url "$DEVNET_RPC" --keypair "$DEVNET_WALLET" > target/devnet/program-show.txt
 printf 'Deployed on Devnet: %s\n' "$program_id"
 printf 'Explorer: https://explorer.solana.com/address/%s?cluster=devnet\n' "$program_id"
