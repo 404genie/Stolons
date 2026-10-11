@@ -1,0 +1,5 @@
+{
+  "name": "Stolons Child",
+  "symbol": "STCHILD",
+  "description": "Devnet-only Stolons child token for lifecycle integration tests. No real monetary value."
+}
