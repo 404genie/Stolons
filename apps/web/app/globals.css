@@ -1340,3 +1340,8 @@ textarea {
     transition:none!important
   }
 }
+
+.market-stats-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.market-stats-grid strong { display:block; font-size:21px; font-weight:650; overflow-wrap:anywhere; }
+.market-stats-grid small { display:block; color:var(--muted); font-size:10px; margin-top:7px; }
+@media(max-width:760px) { .market-stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:22px; } }

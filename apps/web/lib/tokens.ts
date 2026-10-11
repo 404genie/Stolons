@@ -43,5 +43,5 @@ export async function readCurve(connection: Connection, lineage: LineageAccount)
   const pool = await connection.getAccountInfo(lineage.launchPool, "confirmed");
   if (!pool || pool.data.length < 365) return null;
   const raised = pool.data.readBigUInt64LE(61), target = pool.data.readBigUInt64LE(69);
-  return { raised: Number(raised) / 1e9, target: Number(target) / 1e9, progress: target > 0n ? Math.min(100, Number(raised * 10000n / target) / 100) : 0, complete: pool.data[17] !== 0 };
+  return { raised: Number(raised) / 1e9, target: Number(target) / 1e9, progress: target > 0n ? Math.min(pool.data[17] === 0 ? 99.9 : 100, Number(raised * 10000n / target) / 100) : 0, complete: pool.data[17] !== 0, migrated: pool.data[17] === 2 };
 }

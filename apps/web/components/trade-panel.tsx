@@ -88,8 +88,8 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
 
   return <section className="card launch-form trade-panel" aria-labelledby="trade-heading">
     <div className="panel-title"><h2 id="trade-heading">Trade</h2><span>DEVNET</span></div>
-    <p className="small">Raydium bonding curve. Quotes include trading fees. Network fees and account rent are additional.</p>
-    {graduated ? <p className="notice">This token has graduated to a CPMM pool. Trading for graduated tokens is coming next.</p> : <>
+    <p className="small">{graduated ? 'Raydium CPMM.' : 'Raydium bonding curve.'} Quotes include trading fees. Network fees and account rent are additional.</p>
+    <>
       <form onSubmit={preview}>
         <fieldset disabled={busy || uncertain}>
           <div className="actions" role="group" aria-label="Trade direction">
@@ -110,7 +110,7 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
         <p>Minimum received: {minimumText} {side === "buy" ? "tokens" : "SOL"}</p>
         <button className="button primary" type="button" disabled={busy || !wallet.signTransaction} onClick={trade}>Confirm {side} ↗</button>
       </div>}
-    </>}
+    </>
     {message && <p className="small" role="status">{message}</p>}
     {error && <p className="error" role="alert">{error}</p>}
     {signature && <p><a href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction</a></p>}

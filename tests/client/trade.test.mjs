@@ -44,7 +44,7 @@ test('buy and sell quote from actual devnet pool snapshots and encode the review
   assert.equal(swap.data.readBigUInt64LE(8), s.input.amount);
   assert.equal(swap.data.readBigUInt64LE(16), sellQuote.minimum);
   await assert.rejects(buildDevnetTrade(market({ post: true, balance: '0' }).connection, sellQuote), /Insufficient token/);
-  await assert.rejects(quoteDevnetTrade(market({ graduated: true }).connection, f.input), /completed its bonding curve/);
+  await assert.rejects(quoteDevnetTrade(market({ graduated: true }).connection, f.input), /migration is pending/);
   await assert.rejects(buildDevnetTrade(f.connection, { ...q, quotedAt: Date.now() - 60001 }), /expired/);
   await assert.rejects(buildDevnetTrade(market({ moved: true }).connection, q), /Price moved/);
 });

@@ -89,12 +89,20 @@ Open a newly launched token's `/token/<mint>` page and connect Phantom on devnet
 
 Try a small buy, check the transaction on Solana Explorer, then sell part of the received tokens. Amounts use integer token units (nine decimals for SOL, six for these tokens). Slippage accepts 0.01%–10%. Trades use a new temporary wrapped-SOL account and close it in the same transaction; existing wrapped-SOL accounts are not closed. An uncertain submission shows the signed transaction ID and blocks another trade until you acknowledge checking it.
 
-This update supports the Raydium bonding curve on devnet. A completed curve or a registered CPMM pool shows that graduated trading is pending rather than submitting a curve trade. Mainnet remains disabled.
+This update supports the Raydium bonding curve on devnet. Completed curves show Raydium migration status. Migrated pools trade through CPMM. Mainnet remains disabled.
 
 Validation: `pnpm sdk:build && pnpm test:client && pnpm web:build`. The trade regression fixtures are public devnet account snapshots, including a simulated post-buy pool; tests run without network access.
 
 ### Frontend workspace
 
-The discovery page reads registered lineages directly from devnet and loads token names, symbols, images, and social links from Metaplex metadata. Filter roots, descendants, or launches by the connected creator wallet; paste a mint address to open a token. Token pages show actual bonding-curve fundraising progress, supply, parent/root links, reserve state, and trading. Launch includes image upload and a live identity preview. Reproduction shows eligibility and supports opening the on-chain round. Proposal, vote, child-launch web actions and graduated CPMM trading remain pending.
+The discovery page reads registered lineages directly from devnet and loads token names, symbols, images, and social links from Metaplex metadata. Filter roots, descendants, or launches by the connected creator wallet; paste a mint address to open a token. Token pages show actual bonding-curve fundraising progress, supply, parent/root links, reserve state, and trading. Launch includes image upload and a live identity preview. Reproduction shows eligibility and supports opening the on-chain round. Proposal, vote, and child-launch web actions remain pending. Graduation registration, reserve claiming, family activation, and CPMM trading are available.
 
 Wallets may add compute-budget priority-fee instructions to a trade. The client verifies unchanged payer, blockhash, and all non-budget instructions, caps compute units at 1.4M and price at 1M micro-lamports per unit, then simulates the exact signed transaction with signature verification before submission.
+
+### Graduation and CPMM
+
+The token page reads the LaunchLab status: trading, migration pending, or migrated. Raydium performs migration; the frontend polls every 15 seconds while migration is pending. After the migrated pool appears, the Graduation & activation panel provides one transaction at a time to register migration, claim the reserve, and activate a root or finalize a selected child. Each step rereads state, simulates before wallet approval, verifies wallet-returned instructions, and simulates the signed transaction. An uncertain send retains its signature and requires inspection before another action. Confirmed steps resume from on-chain state after reload.
+
+Migrated token trades use the canonical configured CPMM pool. Quotes subtract protocol, fund, and creator fees held in vaults from usable reserves, apply SDK swap calculations with direction-aware creator fees, and enforce the reviewed minimum. Existing wrapped-SOL accounts remain untouched.
+
+Graduated pages show market cap and liquidity in test SOL, and token age from the on-chain creation timestamp. Market cap uses current minted supply (including locked reserve) at spot pool price; liquidity values both reserves at that price. One-hour volume scans confirmed CPMM swaps and quote-vault turnover. Incomplete, excessive, missing, or netted multiple-swap history shows unavailable rather than an invented number. Production volume should move to indexed swap events for high-throughput pools. The market endpoint caches responses for 30 seconds.
