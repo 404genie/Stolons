@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
+import {assertCluster} from '../../sdk/dist/network.js';
 import {readRetryFetch} from '../../services/keeper/rpc.mjs';
 const {ALL_PROGRAM_ID,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
 async function main(){
@@ -11,7 +12,7 @@ async function main(){
  const rpc=process.env.MAINNET_RPC_URL||'https://api.mainnet-beta.solana.com';
  if(new URL(rpc).protocol!=='https:')throw Error('Use an HTTPS RPC.');
  const connection=new Connection(rpc,{commitment:'confirmed',disableRetryOnRateLimit:true,fetch:readRetryFetch()});
- if(await connection.getGenesisHash()!=='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ')throw Error('RPC is not mainnet.');
+ await assertCluster(connection,'mainnet-beta');
  for(const [field,expected] of [['launchlabProgram',ALL_PROGRAM_ID.LAUNCHPAD_PROGRAM],['cpmmProgram',ALL_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM],['launchlabConfig',ALL_PROGRAM_ID.LAUNCHPAD_CONFIG]])if(m[field]!==expected.toBase58())throw Error(`Noncanonical ${field}.`);
  const keys=['launchlabProgram','cpmmProgram','launchlabConfig','cpmmConfig'].map(field=>new PublicKey(m[field]));
  const a=await connection.getMultipleAccountsInfo(keys,'confirmed');

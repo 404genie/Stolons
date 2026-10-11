@@ -42,7 +42,7 @@ test('read-only mainnet inspection checks deployment, config, fees and keeper wi
  const account=(owner,bytes,executable=false)=>({owner:new PublicKey(owner),data:bytes,executable});
  let reads=0;
  const accounts=[account(loader,executable,true),account(loader,data),account(program,config),account(loader,Buffer.alloc(36),true),account(loader,Buffer.alloc(36),true),account(m.launchlabProgram,launch),account(m.launchlabProgram,platform),account(m.cpmmProgram,cpmm)];
- const connection={getGenesisHash:async()=> '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ',getMultipleAccountsInfo:async()=>{reads++;return accounts;},getAddressLookupTable:async()=>({value:{isActive:()=>true}}),getBalance:async()=>100000000};
+ const connection={getGenesisHash:async()=> '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d',getMultipleAccountsInfo:async()=>{reads++;return accounts;},getAddressLookupTable:async()=>({value:{isActive:()=>true}}),getBalance:async()=>100000000};
  const report=await inspectMainnet(connection,m);assert.equal(report.transactionsSent,0);assert.equal(report.publicLaunchApproved,false);assert.equal(reads,1);
  cpmm.writeBigUInt64LE(0n,108);await assert.rejects(inspectMainnet(connection,m),/Raydium fee rates differ/);cpmm.writeBigUInt64LE(BigInt(m.cpmmCreatorFeeRate),108);
  launch.writeBigUInt64LE(90000000000n,75);await assert.rejects(inspectMainnet(connection,m),/violates live Raydium curve constraints/);launch.writeBigUInt64LE(0n,75);

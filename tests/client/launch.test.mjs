@@ -37,7 +37,7 @@ test('launch confirms successfully and preview estimates payer cost', async () =
 });
 
 test('root launch supports explicitly selected mainnet and rejects cross-network sending',async()=>{
- const genesis='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
+ const genesis='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
  const mainnet=fixture({genesis});mainnet.prepared.cluster='mainnet-beta';
  assert.ok((await sendRootLaunch(mainnet.connection,mainnet.prepared,mainnet.mint,mainnet.sign)).length>80);
  const wrong=fixture();wrong.prepared.cluster='mainnet-beta';

@@ -2,7 +2,7 @@ import type {Connection} from '@solana/web3.js';
 import {DEVNET_PROGRAM_ID,ALL_PROGRAM_ID} from '@raydium-io/raydium-sdk-v2';
 import {DEVNET_GENESIS_HASH} from './launch-validation.js';
 export type SolanaCluster='devnet'|'mainnet-beta';
-export const MAINNET_GENESIS_HASH='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
+export const MAINNET_GENESIS_HASH='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d';
 export function clusterGenesis(cluster:SolanaCluster){
  if(cluster==='devnet')return DEVNET_GENESIS_HASH;
  if(cluster==='mainnet-beta')return MAINNET_GENESIS_HASH;

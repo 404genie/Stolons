@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
 import {deriveConfigPda,deriveReproductionAuthorityPda,decodePlatformConfig} from '../../sdk/dist/index.js';
 const {ALL_PROGRAM_ID,PlatformConfig,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
-const MAINNET_GENESIS='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
+import {MAINNET_GENESIS_HASH as MAINNET_GENESIS} from '../../sdk/dist/network.js';
 const LOADER=new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
 const DEVNET_PROGRAM='4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ';
 class PreflightError extends Error {}

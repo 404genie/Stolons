@@ -28,3 +28,9 @@ test('child mint recovery retains devnet keys and separates mainnet recovery',as
  const devnet=await recoverChildMint(...args),again=await recoverChildMint(...args,'devnet'),mainnet=await recoverChildMint(...args,'mainnet-beta');
  assert.ok(devnet.publicKey.equals(again.publicKey));assert.ok(!mainnet.publicKey.equals(devnet.publicKey));
 });
+
+test('mainnet RPC verification uses the full canonical hash and rejects the former typo',async()=>{
+ assert.equal(clusterGenesis('mainnet-beta'),'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d');
+ await assertCluster({getGenesisHash:async()=>'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d'},'mainnet-beta');
+ for(const hash of ['5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ','5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'])await assert.rejects(assertCluster({getGenesisHash:async()=>hash},'mainnet-beta'),/cluster mismatch/);
+});

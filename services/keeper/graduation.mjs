@@ -1,6 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair} from '@solana/web3.js';
-import {decodeLineage} from '../../sdk/dist/index.js';
+import {decodeLineage,assertCluster} from '../../sdk/dist/index.js';
 import {runGraduation,KeeperSubmissionUncertain} from './run-graduation.mjs';
 const apply=process.argv.includes('--apply');
 const cluster=process.env.KEEPER_CLUSTER;
@@ -22,5 +22,5 @@ async function scan(){
   }catch(error){console.error(mint?.toBase58()||'account',error.message);if(error instanceof KeeperSubmissionUncertain){console.error('Inspect the keeper wallet transaction before restarting.');process.exit(1);}}
  }
 }
-if(await connection.getGenesisHash()!==(cluster==='devnet'?'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG':'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ'))throw Error('Keeper RPC cluster mismatch.');
+await assertCluster(connection,cluster);
 do{try{await scan()}catch(error){console.error('Scan failed:',error.message)}if(process.argv.includes('--once')||stopped)break;await new Promise(resolve=>setTimeout(resolve,15000));}while(!stopped);
