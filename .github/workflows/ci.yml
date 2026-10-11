@@ -24,6 +24,10 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Validate Devnet setup scripts
+        run: |
+          bash -n .devcontainer/setup.sh scripts/devnet/*.sh
+          python3 -m json.tool .devcontainer/devcontainer.json > /dev/null
       - run: pnpm test
       - run: pnpm sdk:build
       - run: pnpm test:client
