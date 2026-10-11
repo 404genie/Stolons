@@ -78,3 +78,7 @@ MAINNET_BROWSER_RPC_URL=https://your-origin-scoped-rpc.example node scripts/prod
 ```
 
 The tool refuses to overwrite an existing file. It writes only public network/program/lookup-table/target settings and sets `NEXT_PUBLIC_ENABLE_MAINNET_TRANSACTIONS=false`. Keep server Blob credentials and keeper signing keys separate. Browser RPC URLs are visible to users; use origin restrictions. Review and install these settings in the frontend deployment, then complete the release gates before explicitly enabling transactions. `production/.env.example` contains the corresponding server and keeper settings. This branch does not deploy or fund mainnet accounts.
+
+## Intended treasury
+
+The intended mainnet treasury is `FRVw3s9Wz4pKzRuUwEj9FZYa39vLbAfXzUqiDYAK2K87`, provided by the owner. It is recorded in the production manifest template. Deployment initialization and the Raydium platform fee wallet must use this same address; preflight checks both. This records deployment intent and does not change any existing on-chain configuration. The mainnet program, platform config, authorities, keeper and lookup table still need their deployment-specific addresses.
