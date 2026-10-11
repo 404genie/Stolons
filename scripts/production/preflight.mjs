@@ -4,7 +4,7 @@ import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
 import {deriveConfigPda,deriveReproductionAuthorityPda,decodePlatformConfig} from '../../sdk/dist/index.js';
-const {ALL_PROGRAM_ID,PlatformConfig,LaunchpadConfig,CpmmConfigInfoLayout}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
+const {ALL_PROGRAM_ID,PlatformConfig,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
 const MAINNET_GENESIS='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
 const LOADER=new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
 const DEVNET_PROGRAM='4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ';
@@ -21,6 +21,8 @@ export function validateManifest(m){
  for(const field of ['proposalFeeLamports','graduationTargetLamports'])if(typeof m[field]!=='string'||!/^\d+$/.test(m[field])||BigInt(m[field])>18446744073709551615n)fail(`Set ${field} as an unsigned integer string.`);
  if(BigInt(m.proposalFeeLamports)>1000000000n||BigInt(m.graduationTargetLamports)<=1000000000n)fail('Production fees must fit protocol limits and graduation must exceed the 1 SOL devnet test target.');
  for(const field of ['platformFeeRate','creatorFeeRate'])if(!Number.isSafeInteger(m[field])||m[field]<=0||m[field]>=1000000)fail(`Set nonzero ${field} in millionths for launchpad and creator revenue.`);
+ for(const field of ['launchProtocolFeeRate','cpmmTradeFeeRate','cpmmCreatorFeeRate'])if(!Number.isSafeInteger(m[field])||m[field]<0||m[field]>=1000000)fail(`Set ${field} in millionths.`);
+ if(m.launchProtocolFeeRate+m.platformFeeRate+m.creatorFeeRate>=1000000||m.cpmmTradeFeeRate+m.cpmmCreatorFeeRate>=1000000)fail('Combined venue fees must be below 100%.');
  if(m.platformFeeRate+m.creatorFeeRate>=1000000)fail('Combined platform/creator fees must be below 100%.');
  if(new Set([m.keeperWallet,m.upgradeAuthority,m.configAuthority,m.treasury]).size<2||[m.upgradeAuthority,m.configAuthority,m.treasury].includes(m.keeperWallet))fail('Keeper must use a dedicated fee payer, separate from authorities and treasury.');
  return m;
@@ -42,6 +44,9 @@ export async function inspectMainnet(connection,manifest){
  for(const [index,name]of [[5,'GlobalConfig'],[7,'AmmConfig']])if(!a[index].data.subarray(0,8).equals(createHash('sha256').update('account:'+name).digest().subarray(0,8)))fail('Raydium configuration discriminator mismatch.');
  const launch=LaunchpadConfig.decode(a[5].data),cpmm=CpmmConfigInfoLayout.decode(a[7].data);
  if(launch.mintB.toBase58()!=='So11111111111111111111111111111111111111112'||launch.curveType!==0||cpmm.disableCreatePool)fail('Mainnet curve/CPMM configuration is unsupported or disabled.');
+ if(Number(launch.tradeFeeRate.toString())!==m.launchProtocolFeeRate||Number(cpmm.tradeFeeRate.toString())!==m.cpmmTradeFeeRate||Number(cpmm.creatorFeeRate.toString())!==m.cpmmCreatorFeeRate)fail('Raydium fee rates differ from reviewed economics.');
+ const BN=launch.tradeFeeRate.constructor,bn=value=>new BN(String(value));
+ try{Curve.checkParam({supply:bn(1000000000000000n),totalSell:bn(800000000000000n),totalLockedAmount:bn(150000000000000n),totalFundRaising:bn(m.graduationTargetLamports),decimals:6,config:launch,migrateType:'cpmm'});}catch{fail('Reviewed graduation target or 80/5/15 allocation violates live Raydium curve constraints.');}
  const p=decodePlatformConfig(a[6].data),full=PlatformConfig.decode(a[6].data);
  if(!new PublicKey(p.feeWallet).equals(new PublicKey(m.treasury))||!new PublicKey(p.cpmmConfig).equals(keys[7])||!new PublicKey(p.vestingWallet).equals(deriveReproductionAuthorityPda(program))||p.vestingScale!==1000000n||p.migrationPlatformScale!==0n||p.migrationCreatorScale!==0n||p.migrationBurnScale!==1000000n)fail('Platform treasury, reproduction vesting or LP burn allocation differs from protocol.');
  if(Number(full.feeRate.toString())!==m.platformFeeRate||Number(full.creatorFeeRate.toString())!==m.creatorFeeRate)fail('On-chain platform/creator fees differ from reviewed economics.');
@@ -51,7 +56,7 @@ export async function inspectMainnet(connection,manifest){
  if(!table||!table.isActive())fail('Mainnet lookup table is unavailable or deactivated.');
  const balance=await connection.getBalance(new PublicKey(m.keeperWallet),'confirmed');
  if(balance<50000000)fail('Fund the dedicated keeper with at least 0.05 SOL for fee/rent headroom.');
- return {cluster:m.cluster,programId:m.programId,configurationMatches:true,paused:c.data[304]!==0,keeperLamports:balance,transactionsSent:0,publicLaunchApproved:false};
+ return {cluster:m.cluster,programId:m.programId,configurationMatches:true,paused:c.data[304]!==0,keeperLamports:balance,transactionsSent:0,postGraduationRevenueSplitImplemented:false,publicLaunchApproved:false};
 }
 async function main(){
  const [file,...flags]=process.argv.slice(2);if(!file||flags.some(flag=>flag!=='--offline'))fail('Usage: node scripts/production/preflight.mjs MANIFEST.json [--offline]');

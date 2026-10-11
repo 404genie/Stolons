@@ -9,14 +9,17 @@
   "cpmmProgram": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
   "launchlabConfig": "6s1xP3hpbAfFoNtUNF8mfHsjr2Bd97JxFJRWLbL6aHuX",
   "platformConfig": null,
-  "cpmmConfig": null,
+  "cpmmConfig": "D4FPEruKEHrG5TenZ2mpDGEfu1iUvTiqBxvpU8HLBvC2",
   "lookupTable": null,
   "proposalWindowSeconds": 86400,
   "votingWindowSeconds": 86400,
   "candidateLaunchWindowSeconds": 86400,
   "candidateMigrationWindowSeconds": 604800,
-  "proposalFeeLamports": null,
-  "graduationTargetLamports": null,
-  "platformFeeRate": null,
-  "creatorFeeRate": null
+  "proposalFeeLamports": "1000000",
+  "graduationTargetLamports": "85000000000",
+  "platformFeeRate": 1000,
+  "creatorFeeRate": 1000,
+  "launchProtocolFeeRate": 2500,
+  "cpmmTradeFeeRate": 2500,
+  "cpmmCreatorFeeRate": 500
 }
