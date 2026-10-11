@@ -10,3 +10,17 @@ export function readRetryFetch(fetcher=fetch,pause=ms=>new Promise(resolve=>setT
   }
  };
 }
+/** HTTP confirmation avoids public-RPC websocket subscription rate limits. */
+export function useHttpConfirmation(connection,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
+ connection.confirmTransaction=async strategy=>{
+  if(typeof strategy==='string')throw Error('Confirmation requires the signed blockhash expiry.');
+  for(;;){
+   const result=await connection.getSignatureStatuses([strategy.signature],{searchTransactionHistory:true});
+   const status=result.value[0];
+   if(status&&(status.err||['confirmed','finalized'].includes(status.confirmationStatus)))return {context:result.context,value:{err:status.err}};
+   if(await connection.getBlockHeight('confirmed')>strategy.lastValidBlockHeight)throw Error('Transaction blockhash expired; inspect signature before retrying.');
+   await pause(3000);
+  }
+ };
+ return connection;
+}

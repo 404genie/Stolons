@@ -1,4 +1,4 @@
-import {readRetryFetch} from './rpc.mjs';
+import {readRetryFetch,useHttpConfirmation} from './rpc.mjs';
 import {readFile} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair} from '@solana/web3.js';
 import {assertCluster,decodeLineage} from '../../sdk/dist/index.js';
@@ -9,6 +9,7 @@ const cluster=process.env.KEEPER_CLUSTER;
 if(!['devnet','mainnet-beta'].includes(cluster))throw Error('Set KEEPER_CLUSTER.');
 if(!process.env.KEEPER_RPC_URL||!process.env.KEEPER_PROGRAM_ID)throw Error('Set KEEPER_RPC_URL, KEEPER_PROGRAM_ID.');
 const connection=new Connection(process.env.KEEPER_RPC_URL,{commitment:'confirmed',disableRetryOnRateLimit:true,fetch:readRetryFetch()});
+useHttpConfirmation(connection);
 await assertCluster(connection,cluster);
 const program=new PublicKey(process.env.KEEPER_PROGRAM_ID),table=process.env.KEEPER_LOOKUP_TABLE?new PublicKey(process.env.KEEPER_LOOKUP_TABLE):undefined;
 const payer=apply?Keypair.fromSecretKey(Uint8Array.from(JSON.parse(await readFile(process.env.KEEPER_KEYPAIR_PATH,'utf8')))):null;

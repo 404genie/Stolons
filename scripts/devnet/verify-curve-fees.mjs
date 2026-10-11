@@ -1,5 +1,5 @@
 import {decodeLaunchConfig} from '../../sdk/dist/launch-validation.js';
-import {readRetryFetch} from '../../services/keeper/rpc.mjs';
+import {readRetryFetch,useHttpConfirmation} from '../../services/keeper/rpc.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {Connection,PublicKey,Keypair,TransactionMessage,VersionedTransaction,SystemProgram} from '@solana/web3.js';
 import {createRequire} from 'node:module';
@@ -12,6 +12,7 @@ import {quoteDevnetTrade,buildDevnetTrade,sendDevnetTrade,TradeSubmittedError} f
 import {buildCurveCreatorFeeClaim,buildTreasuryCurveFeeClaim} from '../../sdk/dist/fees.js';
 const apply=process.argv.includes('--apply');if(process.argv.slice(2).some(x=>x!=='--apply'))throw Error('Usage: node scripts/devnet/verify-curve-fees.mjs [--apply]');
 const c=new Connection(process.env.DEVNET_FEE_RPC_URL||'https://api.devnet.solana.com',{commitment:'confirmed',disableRetryOnRateLimit:true,fetch:readRetryFetch()});
+useHttpConfirmation(c);
 await assertCluster(c,'devnet');
 const program=new PublicKey('4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ'),table=new PublicKey(process.env.NEXT_PUBLIC_LAUNCH_LOOKUP_TABLE||'88XLHEm7T4SEhSzMx3vqZjGXmzo2bbeJq4VK2sgJHGwx');
 const raw=await c.getAccountInfo(deriveConfigPda(program));if(!raw?.owner.equals(program))throw Error('Config missing.');const config=decodeLaunchConfig(raw.data);if(config.version!==2)throw Error('Requires fee sharing v2.');
