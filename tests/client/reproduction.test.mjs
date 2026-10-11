@@ -57,3 +57,23 @@ test('first proposal opens its round atomically after metadata preparation, with
  const prepared=await build(f,{kind:'open-propose',epoch,args});const instructions=TransactionMessage.decompile(prepared.transaction.message).instructions;assert.equal(instructions.length,3);assert.ok(prepared.transaction.serialize().length<=1232);assert.ok(instructions[1].keys.some(k=>k.pubkey.equals(epoch)));assert.ok(instructions[2].keys.some(k=>k.pubkey.equals(epoch)));
  await assert.rejects(build(f,{kind:'open-propose',epoch:f.epoch,args}),/round slot changed/);
 });
+
+test('round refresh batches accounts, reuses cluster verification, and preserves RPC failures',async()=>{
+ const f=fixture({now:160n,proposalCount:3,hasVote:true});
+ const calls={genesis:0,single:0,batch:0};
+ const genesis=f.connection.getGenesisHash,single=f.connection.getAccountInfo,batch=f.connection.getMultipleAccountsInfo;
+ f.connection.getGenesisHash=async()=>{calls.genesis++;return genesis();};
+ f.connection.getAccountInfo=async key=>{calls.single++;return single(key);};
+ f.connection.getMultipleAccountsInfo=async keys=>{calls.batch++;return batch(keys);};
+ for(let i=0;i<2;i++){const state=await readReproduction(f.connection,f.program,f.mint,f.owner);assert.equal(state.proposals.length,3);assert.equal(roundPhase(state.epoch,state.now),'vote');assert.equal(state.vote.amount,1000000n);}
+ assert.deepEqual(calls,{genesis:1,single:2,batch:4});
+ f.connection.getTokenAccountBalance=async()=>{throw Error('429 Too Many Requests');};
+ await assert.rejects(readReproduction(f.connection,f.program,f.mint,f.owner),/429/);
+});
+test('failed cluster verification retries and never authorizes a mainnet RPC',async()=>{
+ const f=fixture();let calls=0;
+ f.connection.getGenesisHash=async()=>{calls++;if(calls===1)throw Error('429');return 'mainnet';};
+ await assert.rejects(readReproduction(f.connection,f.program,f.mint),/429/);
+ await assert.rejects(readReproduction(f.connection,f.program,f.mint),/devnet only/);
+ assert.equal(calls,2);
+});

@@ -1,7 +1,7 @@
 import {Connection,PublicKey,SYSVAR_CLOCK_PUBKEY,ComputeBudgetProgram,TransactionMessage,VersionedTransaction} from '@solana/web3.js';
 import {Buffer} from 'buffer';
 import {getAssociatedTokenAddressSync,createAssociatedTokenAccountIdempotentInstruction} from '@solana/spl-token';
-import {StolonsClient} from './client.js';
+import {decodeLineage} from './client.js';
 import {buildInstruction} from './builders.js';
 import {deriveConfigPda,deriveLineagePda,deriveEpochPda,deriveProposalPda,deriveCandidatePda,deriveProposedMintPda,deriveVotePda,deriveVoteAuthorityPda,deriveVoteEscrowPda,deriveVaultAuthorityPda,deriveReproductionVaultPda} from './pda.js';
 import {DEVNET_GENESIS_HASH,decodeLaunchConfig,validateLaunchDetails} from './launch-validation.js';
@@ -14,9 +14,16 @@ export function decodeProposal(data:Uint8Array){const b=checked(data,[26,94,189,
 export function decodeCandidate(data:Uint8Array){const b=checked(data,[86,69,250,96,193,10,222,123],276);const status=['Proposed','Selected','Launched','Qualified','Expired','Settled','Orphan'][b[168]!];if(!status)throw Error('Invalid candidate status.');return {parentMint:key(b,8),childMint:key(b,40),epoch:key(b,72),proposal:key(b,104),proposer:key(b,136),status,launchDeadline:b.readBigInt64LE(177),migrationDeadline:b.readBigInt64LE(193),launchPool:key(b,209),cpmmPool:key(b,241),reserveClaimed:b[273]!==0,settled:b[274]!==0};}
 export function decodeVote(data:Uint8Array){const b=checked(data,[104,20,204,252,45,84,37,195],114);return {voter:key(b,8),epoch:key(b,40),proposal:key(b,72),amount:b.readBigUInt64LE(104),withdrawn:b[112]!==0};}
 export function roundPhase(epoch:ReturnType<typeof decodeEpoch>,now:bigint){return epoch.status!=='Open'?'closed':now<epoch.proposalEnd?'propose':now<epoch.voteEnd?'vote':'finalize';}
+const verifiedConnections=new WeakMap<Connection,Promise<void>>();
+async function verifyConnection(connection:Connection){
+ let pending=verifiedConnections.get(connection);
+ if(!pending){pending=connection.getGenesisHash().then(hash=>{if(hash!==DEVNET_GENESIS_HASH)throw Error('Reproduction is enabled on Solana devnet only.');});verifiedConnections.set(connection,pending);}
+ try{await pending;}catch(error){verifiedConnections.delete(connection);throw error;}
+}
 export async function readReproduction(connection:Connection,program:PublicKey,parentMint:PublicKey,voter?:PublicKey,epochId?:bigint){
- if(await connection.getGenesisHash()!==DEVNET_GENESIS_HASH)throw Error('Reproduction is enabled on Solana devnet only.');
- const [parent,configAccount,clock]=await Promise.all([new StolonsClient(connection,program).getLineage(parentMint),connection.getAccountInfo(deriveConfigPda(program),'confirmed'),connection.getAccountInfo(SYSVAR_CLOCK_PUBKEY,'confirmed')]);
+ await verifyConnection(connection);
+ const [parentAccount,configAccount,clock]=await connection.getMultipleAccountsInfo([deriveLineagePda(program,parentMint),deriveConfigPda(program),SYSVAR_CLOCK_PUBKEY],'confirmed');
+ const parent=parentAccount?.owner.equals(program)?decodeLineage(parentAccount.data):null;
  if(!parent||!configAccount?.owner.equals(program)||!clock||clock.data.length<40)throw Error('Reproduction configuration or lineage missing.');
  const bytes=Buffer.from(configAccount.data);const paused=bytes[304]!==0;bytes[304]=0;decodeLaunchConfig(bytes);
  const now=clock.data.readBigInt64LE(32),selectedId=epochId??(parent.nextEpochId>0n?parent.nextEpochId-1n:null);
@@ -26,9 +33,14 @@ export async function readReproduction(connection:Connection,program:PublicKey,p
  const epoch=epochAccount?.owner.equals(program)?decodeEpoch(epochAccount.data):null;
  if(epoch&&(!epoch.parentMint.equals(parentMint)||epoch.epochId!==selectedId))throw Error('Round identity mismatch.');
  if(epochKey&&!epoch)throw Error('Round account unavailable.');
- const proposals:ReturnType<typeof decodeProposal>[]=[];
- if(epoch&&epochKey&&epoch.proposalCount){const addresses=Array.from({length:epoch.proposalCount},(_,i)=>deriveProposalPda(program,epochKey,i));const accounts=await connection.getMultipleAccountsInfo(addresses,'confirmed');accounts.forEach((account,i)=>{if(!account?.owner.equals(program))throw Error('Proposal account unavailable.');const proposal=decodeProposal(account.data);if(!proposal.epoch.equals(epochKey)||proposal.proposalId!==i)throw Error('Proposal identity mismatch.');proposals.push(proposal);});}
- const [voteAccount,candidateAccount,vault]=await Promise.all([voter&&epochKey?connection.getAccountInfo(deriveVotePda(program,epochKey,voter),'confirmed'):null,parent.activeCandidate.equals(PublicKey.default)?null:connection.getAccountInfo(deriveCandidatePda(program,parent.activeCandidate),'confirmed'),connection.getTokenAccountBalance(deriveReproductionVaultPda(program,parentMint),'confirmed').catch(()=>null)]);
+ const addresses=epoch&&epochKey?Array.from({length:epoch.proposalCount},(_,i)=>deriveProposalPda(program,epochKey,i)):[];
+ const voteKey=voter&&epochKey?deriveVotePda(program,epochKey,voter):null;
+ const candidateKey=parent.activeCandidate.equals(PublicKey.default)?null:deriveCandidatePda(program,parent.activeCandidate);
+ const keys=[...addresses,...(voteKey?[voteKey]:[]),...(candidateKey?[candidateKey]:[])];
+ const [accounts,vault]=await Promise.all([keys.length?connection.getMultipleAccountsInfo(keys,'confirmed'):Promise.resolve([]),connection.getTokenAccountBalance(deriveReproductionVaultPda(program,parentMint),'confirmed')]);
+ const proposals=addresses.map((_,i)=>{const account=accounts[i];if(!account?.owner.equals(program))throw Error('Proposal account unavailable.');const proposal=decodeProposal(account.data);if(!proposal.epoch.equals(epochKey!)||proposal.proposalId!==i)throw Error('Proposal identity mismatch.');return proposal;});
+ const voteAccount=voteKey?accounts[addresses.length]:null;
+ const candidateAccount=candidateKey?accounts[addresses.length+(voteKey?1:0)]:null;
  const vote=voteAccount?.owner.equals(program)?decodeVote(voteAccount.data):null;
  if(vote&&(!vote.epoch.equals(epochKey!)||!vote.voter.equals(voter!)))throw Error('Vote identity mismatch.');
  const candidate=candidateAccount?.owner.equals(program)?decodeCandidate(candidateAccount.data):null;
