@@ -1520,6 +1520,7 @@ pub struct CollectSharedCpmmFees<'info> {
     /// CHECK: optional-existence PDA, canonical address checked by CPMM CPI.
     #[account(seeds = [b"creator_fee_share", fee_authority.key().as_ref(), amm_config.key().as_ref()], bump, seeds::program = config.cpmm_program)]
     pub creator_fee_share: UncheckedAccount<'info>,
+    /// CHECK: address is pinned to GlobalConfig and the executable constraint validates the CPI program.
     #[account(address = config.cpmm_program, executable)]
     pub cpmm_program: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
@@ -1610,6 +1611,7 @@ pub struct ClaimCurveCreatorFees<'info> {
     pub fee_ata: Box<Account<'info, TokenAccount>>,
     #[account(init_if_needed, payer = payer, associated_token::mint = quote_mint, associated_token::authority = creator)]
     pub destination: Box<Account<'info, TokenAccount>>,
+    /// CHECK: address is pinned to GlobalConfig and the executable constraint validates the CPI program.
     #[account(address = config.launchlab_program, executable)]
     pub launchlab_program: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
