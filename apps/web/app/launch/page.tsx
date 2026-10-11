@@ -1,4 +1,5 @@
 "use client";
+import {Footer} from "../../components/footer";
 import {SOLANA_CLUSTER,IS_MAINNET,NETWORK_LABEL,SOL_LABEL,EXPLORER_QUERY,GRADUATION_TARGET_LAMPORTS,TRANSACTIONS_ENABLED,requireTransactions} from "../../lib/network";
 
 import Link from "next/link";
@@ -124,7 +125,7 @@ export default function LaunchPage() {
       <div aria-live="polite">{message && <p className="notice">{message}</p>}{error && <p className="error" role="alert">{error}</p>}</div>
     </section><aside className="launch-aside"><article className="card"><div className="aside-label">YOUR TOKEN PREVIEW</div><div className="token-heading"><div className="token-avatar">{imagePreview ? <img src={imagePreview} alt="" /> : <span>{symbol.slice(0, 2) || "ST"}</span>}</div><div><h2>{name || "Your token name"}</h2><span className="small">${symbol || "TICKER"}</span></div></div><p className="small">{description || "Your token's story starts here."}</p><span className="pill">Generation 0 · Root family</span></article>
       <article className="card"><div className="aside-label">FIXED TOKEN ECONOMICS</div><div className="metric">1,000,000,000</div><p className="small">Total tokens · 6 decimals</p><div className="allocation-bar"><i /><i /><i /></div><div className="allocation-row"><span>Bonding curve</span><b>80%</b></div><div className="allocation-row"><span>Migration liquidity</span><b>5%</b></div><div className="allocation-row"><span>Reproduction reserve</span><b>15%</b></div><p className="small" style={{ marginTop: 18, marginBottom: 0 }}>Mint and freeze authorities are revoked at launch. The reproduction reserve stays locked until graduation.</p></article>
-      <div className="notice" style={{ margin: 0 }}>Graduation target: <strong>{Number(GRADUATION_TARGET_LAMPORTS??0n)/1e9} {SOL_LABEL}.</strong> {IS_MAINNET?'Your launch trades with real SOL.':'These tokens are for testing.'} Your wallet stays in control throughout the launch.</div>
-    </aside></div><footer className="footer"><Link href="/">STOLONS / Discover</Link><span>Solana {NETWORK_LABEL} · Powered by Raydium</span></footer>
+      <div className="notice" style={{ margin: 0 }}>Graduation target: <strong>{Number(GRADUATION_TARGET_LAMPORTS??0n)/1e9} {SOL_LABEL}.</strong>  Your wallet stays in control throughout the launch.</div>
+    </aside></div><Footer />
   </div></main>;
 }

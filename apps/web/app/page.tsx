@@ -1,4 +1,5 @@
 "use client";
+import {Footer} from "../components/footer";
 import {NETWORK_LABEL} from "../lib/network";
 
 import Link from "next/link";
@@ -36,6 +37,6 @@ export default function HomePage() {
       {filtered.length > 24 && <p className="small">Showing the 24 newest matches. Search a mint address to open any token.</p>}
     </section>
     <section className="protocol-section" id="protocol"><div className="section-head"><div><div className="eyebrow">BUILT TO BRANCH OUT</div><h2>More than a single token.</h2></div><span className="small">Standard SPL tokens. Raydium liquidity.</span></div><div className="protocol-grid"><article><span className="step-number">01</span><h3>Launch the root</h3><p>Create a token with a fixed 1B supply. 80% goes to the bonding curve, 5% to migration liquidity, and 15% to the reproduction reserve.</p></article><article><span className="step-number">02</span><h3>Grow the family</h3><p>After graduation and reserve activation, open a reproduction round. The community proposes and selects the next child.</p></article><article><span className="step-number">03</span><h3>Make success count</h3><p>A selected child that graduates burns 10M parent tokens. Each token can have up to 15 direct children, with ancestry recorded on-chain.</p></article></div></section>
-    <footer className="footer"><span>STOLONS <span className="muted">/ Memecoins that reproduce.</span></span><span><span className="live-dot" /> Solana {NETWORK_LABEL} · Test tokens only</span></footer>
+    <Footer />
   </div></main>;
 }
