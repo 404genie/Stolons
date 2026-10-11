@@ -1,0 +1,14 @@
+{
+  "evidenceSource": "Owner-supplied Codespaces build log and SHA-256 output",
+  "sourceCommit": "2780cc2dfa11e5c39b39e8729f1ee0eb33d4b1b2",
+  "programId": "8uXCB9g8ctvVddm9W992KF862PX1gT5kijEQmbdbjQ8B",
+  "sha256": {
+    "stolons.so": "b082da6383928009ad97809034ebaca6aaa2fb1eff7f010ec1a857b85be5e0c5",
+    "stolons.json": "a9af3ba0893db692970680c3d7bdee61f93c80ce598e4efeab89fff8ff34d76a"
+  },
+  "checks": {"rustTests": 11, "unitTests": 13, "clientTests": 65, "sbfBuildPassed": true, "stackOverflowReported": false, "idlInstructionBuilders": 21},
+  "transactionsSent": 0,
+  "mainnetDeploymentVerified": false,
+  "publicLaunchApproved": false,
+  "auditDeliveryOrder": "Finish preparation, consolidate branches into main, provide main ZIP for audit before further Railway or Vercel deployment."
+}

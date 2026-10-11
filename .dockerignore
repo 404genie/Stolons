@@ -1,0 +1,13 @@
+.git
+**/node_modules
+**/.next
+**/dist
+keypairs
+target
+.env
+.env.*
+**/.env
+**/.env.*
+**/*.log
+**/*.tsbuildinfo
+.stolons-uploads

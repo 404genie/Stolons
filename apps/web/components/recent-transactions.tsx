@@ -1,0 +1,13 @@
+"use client";
+import {useEffect,useState} from 'react';
+import type {RecentTransaction} from '../lib/recent-transactions';
+import {shortAddress} from '../lib/tokens';
+export function RecentTransactions({mint}:{mint:string}) {
+ const [rows,setRows]=useState<RecentTransaction[]|null>(null),[error,setError]=useState(''),[cluster,setCluster]=useState('devnet'),[now,setNow]=useState(0);
+ useEffect(()=>{let cancelled=false;let pending=false;const controller=new AbortController();setRows(null);setError('');
+  async function load(){if(pending)return;pending=true;try{const response=await fetch(`/api/token/${mint}/transactions`,{cache:'no-store',signal:AbortSignal.any([controller.signal,AbortSignal.timeout(25000)])});if(!response.ok)throw Error('Recent transactions are temporarily unavailable.');const value=await response.json();if(!cancelled){setRows(value.transactions);setCluster(value.cluster);setError('');setNow(Date.now());}}catch(cause){if(!cancelled)setError(cause instanceof Error?cause.message:'Could not read recent transactions.');}finally{pending=false;}}
+  void load();const timer=setInterval(load,15000);return()=>{cancelled=true;controller.abort();clearInterval(timer)};
+ },[mint]);
+ const age=(time:number|null)=>{if(time===null)return 'Unknown';const seconds=Math.max(0,Math.floor(now/1000-time));return seconds<60?`${seconds}s ago`:seconds<3600?`${Math.floor(seconds/60)}m ago`:seconds<86400?`${Math.floor(seconds/3600)}h ago`:`${Math.floor(seconds/86400)}d ago`;};
+ return <article className="card"><div className="panel-title"><h2>Recent transactions</h2><span>POOL ACTIVITY</span></div>{error&&<p className="error" role="status">{error}</p>}{rows===null&&!error?<p className="small" role="status">Loading recent transactions…</p>:rows?.length===0?<p className="small">No recent pool transactions.</p>:rows&&<div className="transactions-scroll"><table className="transactions-table"><thead><tr><th>Time</th><th>Pool</th><th>Status</th><th>Transaction</th></tr></thead><tbody>{rows.map(row=><tr key={row.signature}><td>{age(row.blockTime)}</td><td>{row.venue}</td><td><span className={row.failed?'error':'status-tag'}>{row.failed?'Failed':'Confirmed'}</span></td><td><a href={`https://explorer.solana.com/tx/${row.signature}${cluster==='devnet'?'?cluster=devnet':''}`} target="_blank" rel="noopener noreferrer" aria-label={`View transaction ${row.signature}`}>{shortAddress(row.signature)} ↗</a></td></tr>)}</tbody></table></div>}<p className="small" style={{marginTop:16,marginBottom:0,fontSize:10}}>Latest pool transactions, including swaps and pool operations.</p></article>;
+}

@@ -2,13 +2,13 @@
 
 Stolons is a Solana protocol for independently tradeable tokens with on-chain family lineage. Raydium LaunchLab creates and trades tokens; the Anchor program tracks family state, votes, reproduction reserves, and the fixed ancestry mutation.
 
-This checkout is a complete first code delivery, not a deployed or devnet-verified release. The Rust/SBF program has not been compiled in this workspace because the Rust, Anchor, and Solana toolchains are unavailable here. Do not use the placeholder program ID for deployment.
+The `devnet/codespaces` branch has a deployed Devnet program and a verified root-to-child lifecycle: launch, governance, CPMM migration, reserve claiming, parent burn, and descendant activation. This is a development deployment; remaining acceptance scenarios are tracked in `docs/DEVNET.md`. See `docs/DEVNET-RESULTS.md` for public addresses and validation results.
 
 ## Repository
 
 - `programs/stolons`: Anchor program and checked ancestry math.
 - `sdk`: PDA derivation, instruction builders, lineage decoding, and LaunchLab transaction proof helper.
-- `apps/web`: devnet-first lineage dashboard and epoch-opening screen.
+- `apps/web`: devnet-first lineage dashboard, epoch-opening screen, and wallet root launches with image upload and automatic token metadata.
 - `services/indexer`: optional Anchor event indexer backed by PostgreSQL.
 - `tests/unit`: deterministic integer-math and instruction/account-schema parity checks.
 - `docs`: protocol invariants, Raydium integration pin, code logic review, and Devnet acceptance plan.
@@ -47,4 +47,8 @@ node --experimental-strip-types --test tests/unit/*.test.mjs
 3. Build and review the SBF artifact, generated IDL, raw account layouts, CPI account order, and transaction composition.
 4. Complete every step in [`docs/DEVNET.md`](docs/DEVNET.md), including failed and adversarial cases.
 
-The web UI currently supports lineage inspection and opening an epoch. Other lifecycle actions are available as SDK builders but are not yet wired to web forms. The UI is a protocol development surface, not a mainnet launch application.
+The web UI supports root launches, curve and CPMM trading, graduation activation, child proposals, token-weighted voting, refunds, selected-child launches, and lineage inspection. Creators enter token details and upload an image; the app handles JSON creation and hosting. For deployed uploads, configure a public Blob store with the server-only `BLOB_READ_WRITE_TOKEN`; Devnet development uses local storage. See [`docs/DEVNET.md`](docs/DEVNET.md) for setup. A backend keeper can activate graduated roots and settle children automatically. Mainnet launch remains disabled.
+
+## Mainnet preparation
+
+The latest user-tested family completed child selection, launch, migration and activation. Read-only verification confirmed a 10M parent burn, 140M remaining parent reserve and 150M active child reserve. See [the production preparation and release gates](docs/MAINNET.md). Mainnet transactions remain disabled pending the security/program build gates, cluster-aware clients, approved economics and deployment infrastructure.

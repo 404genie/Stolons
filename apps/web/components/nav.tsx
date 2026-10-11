@@ -1,17 +1,17 @@
 "use client";
+import {NETWORK_LABEL} from "../lib/network";
 
 import Link from "next/link";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+import { usePathname } from "next/navigation";
 
+const WalletMultiButton = dynamic(() => import("@solana/wallet-adapter-react-ui").then(module => module.WalletMultiButton), { ssr: false, loading: () => <button className="wallet-placeholder" disabled>Connect wallet</button> });
 export function Navigation() {
-  return (
-    <header className="nav shell">
-      <Link className="brand" href="/"><span className="brand-mark" />Stolons</Link>
-      <nav className="nav-links">
-        <Link href="/#protocol">Protocol</Link>
-        <Link href="/#launch">Launch</Link>
-        <WalletMultiButton style={{ height: 38, fontSize: 12, background: "#b4d28c", color: "#152010", borderRadius: 5 }} />
-      </nav>
-    </header>
-  );
+  const path = usePathname();
+  return <header className="site-header"><div className="nav shell">
+    <Link className="brand" href="/" aria-label="Stolons home"><Image className="brand-mark" src="/stolons-logo.webp" alt="" width={36} height={36} priority /><span>stolons<span className="brand-period">.</span></span></Link>
+    <nav className="nav-links" aria-label="Main navigation"><Link className={path === "/" ? "active" : ""} href="/">Discover</Link><Link className={path === "/launch" ? "active" : ""} href="/launch">Create token</Link><Link href="/#protocol">How it works</Link></nav>
+    <div className="nav-account"><span className="network-badge"><i />{NETWORK_LABEL}</span><WalletMultiButton /></div>
+  </div></header>;
 }

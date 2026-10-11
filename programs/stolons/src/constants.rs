@@ -14,6 +14,9 @@ pub const REPRODUCTION_AUTHORITY_SEED: &[u8] = b"reproduction_authority";
 
 pub const TOKEN_DECIMALS: u8 = 6;
 pub const GENESIS_SUPPLY: u64 = 1_000_000_000_000_000;
+pub const CURVE_ALLOCATION: u64 = 700_000_000_000_000;
+pub const MIGRATION_ALLOCATION: u64 = 150_000_000_000_000;
+// Total market allocation also supports settlement of earlier registered launches.
 pub const MARKET_ALLOCATION: u64 = 850_000_000_000_000;
 pub const REPRODUCTION_RESERVE: u64 = 150_000_000_000_000;
 pub const CHILD_BURN_ATOMS: u64 = 10_000_000_000_000;
@@ -69,3 +72,9 @@ pub const CPMM_TOKEN_1_MINT_OFFSET: usize = 200;
 pub const CPMM_STATUS_OFFSET: usize = 329;
 pub const CPMM_SWAP_DISABLED_BIT: u8 = 1 << 2;
 
+
+pub const FEE_AUTHORITY_SEED: &[u8] = b"fee_authority";
+pub const FEE_DISTRIBUTION_SEED: &[u8] = b"fee_distribution";
+pub const PLATFORM_CP_CREATOR_OFFSET: usize = 800;
+
+pub const CREATOR_ESCROW_SEED: &[u8] = b"creator_escrow";

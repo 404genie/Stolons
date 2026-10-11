@@ -24,7 +24,7 @@ Stolons is a Solana hereditary-token protocol. Raydium LaunchLab creates and tra
 ## Initial settings
 
 - Standard SPL Token, six decimals, fixed 1B supply, no mint or freeze authority.
-- 850M token atoms are available to the LaunchLab market path; 150M are locked outside curve and graduation liquidity for reproduction.
+- 850M tokens are available to the market path: 700M on the curve and 150M for migration; 150M are locked outside curve and graduation liquidity for reproduction.
 - LaunchLab uses CPMM migration, the Stolons platform config, and an immediate-at-graduation vesting schedule for the reserve.
 - Platform migration LP scales are pinned to platform 0%, creator 0%, burn 100%.
 - Stolons and creators receive no token allocation.

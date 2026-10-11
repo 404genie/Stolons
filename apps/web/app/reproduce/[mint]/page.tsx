@@ -1,89 +1,80 @@
 "use client";
-
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { PublicKey } from "@solana/web3.js";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, deriveConfigPda, deriveEpochPda, deriveLineagePda, deriveReproductionVaultPda, deriveVaultAuthorityPda, deriveVoteAuthorityPda, deriveVoteEscrowPda, buildInstruction, StolonsClient, LineageStatus } from "@stolons/sdk";
-import { Navigation } from "../../../components/nav";
-
-export default function ReproductionPage() {
-  const { mint: mintText } = useParams<{ mint: string }>();
-  const { connection } = useConnection();
-  const wallet = useWallet();
-  const programId = useMemo(() => new PublicKey(process.env.NEXT_PUBLIC_STOLONS_PROGRAM_ID || "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"), []);
-  const client = useMemo(() => new StolonsClient(connection, programId), [connection, programId]);
-  const [lineage, setLineage] = useState<Awaited<ReturnType<StolonsClient["getLineage"]>>>(null);
-  const [vaultAmount, setVaultAmount] = useState<bigint | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const mint = new PublicKey(mintText);
-        const [entry, vault] = await Promise.all([
-          client.getLineage(mint),
-          connection.getTokenAccountBalance(deriveReproductionVaultPda(programId, mint), "confirmed").catch(() => null)
-        ]);
-        if (cancelled) return;
-        setLineage(entry);
-        setVaultAmount(vault ? BigInt(vault.value.amount) : 0n);
-      } catch { if (!cancelled) setMessage("Could not load this lineage from devnet."); }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [client, connection, mintText, programId]);
-
-  const eligible = lineage && (lineage.status === LineageStatus.RootActive || lineage.status === LineageStatus.DescendantActive);
-
-  async function openRound() {
-    const publicKey = wallet.publicKey;
-    const signTransaction = wallet.signTransaction;
-    if (!publicKey || !signTransaction || !lineage) { setMessage("Connect a wallet to open a round."); return; }
-    setBusy(true); setMessage("");
-    try {
-      const mint = new PublicKey(mintText);
-      const epoch = deriveEpochPda(programId, mint, lineage.nextEpochId);
-      const instruction = buildInstruction(programId, "open_epoch", {
-        payer: publicKey,
-        config: deriveConfigPda(programId),
-        parent: deriveLineagePda(programId, mint),
-        parent_mint: mint,
-        vault_authority: deriveVaultAuthorityPda(programId, mint),
-        reproduction_vault: deriveReproductionVaultPda(programId, mint),
-        epoch,
-        vote_authority: deriveVoteAuthorityPda(programId, epoch),
-        vote_escrow: deriveVoteEscrowPda(programId, epoch),
-        token_program: TOKEN_PROGRAM_ID,
-        system_program: SYSTEM_PROGRAM_ID
-      }, lineage.nextEpochId);
-      const signature = await client.send({ publicKey, signTransaction }, instruction);
-      setMessage(`Round opened: ${signature}`);
-    } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : "Transaction failed.");
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <main><Navigation /><div className="shell">
-      <section className="token-head"><div className="eyebrow">Reproduction</div><h1>Open a child round</h1><p className="small">Parent mint: {mintText}</p></section>
-      <div className="grid">
-        <article className="card"><span className="label">Lineage status</span><div className="metric">{lineage?.status ?? "Loading"}</div><p className="small">One active candidate or voting epoch at a time.</p></article>
-        <article className="card"><span className="label">Reserve balance</span><div className="metric">{vaultAmount === null ? "…" : (Number(vaultAmount) / 1_000_000).toLocaleString("en-US")}</div><p className="small">Parent tokens in the program controlled reproduction vault.</p></article>
-        <article className="card"><span className="label">Children</span><div className="metric">{lineage?.directChildrenCount ?? "…"} / 15</div><p className="small">A settled child burns 10M parent tokens.</p></article>
-      </div>
-      <section className="section"><div className="card">
-        <h2>Proposal and vote window</h2>
-        <p className="small">Opening an epoch locks the parent's reproduction state for one 24 hour proposal period and one 24 hour vote period. Each wallet can vote once and may withdraw its escrow after finalization.</p>
-        <div className="notice">This action only opens the on-chain epoch. The proposal submission and vote forms will be enabled after the generated IDL and devnet account layouts have passed the integration gate.</div>
-        <div className="actions"><button className="button primary" onClick={openRound} disabled={busy || !eligible || !vaultAmount || vaultAmount < 10_000_000_000_000n}>{busy ? "Submitting…" : "Open epoch"}</button><Link className="button" href={`/token/${mintText}`}>Back to token</Link></div>
-        {message && <p className="small" role="status">{message}</p>}
-      </div></section>
-      <footer className="footer"><Link href="/">Stolons</Link><span>Wallet action · devnet only</span></footer>
-    </div></main>
-  );
+import {Footer} from "../../../components/footer";
+import {SOLANA_CLUSTER,IS_MAINNET,NETWORK_LABEL,SOL_LABEL,EXPLORER_QUERY,GRADUATION_TARGET_LAMPORTS,TRANSACTIONS_ENABLED,requireTransactions} from "../../../lib/network";
+import Link from 'next/link';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {useParams} from 'next/navigation';
+import {PublicKey,type Keypair} from '@solana/web3.js';
+import {useConnection,useWallet} from '@solana/wallet-adapter-react';
+import {Navigation} from '../../../components/nav';
+import {ChildProposalForm} from '../../../components/child-proposal-form';
+import {STOLONS_PROGRAM_ID,DEVNET_LAUNCH_LOOKUP_TABLE} from '../../../lib/devnet';
+import {shortAddress,statusLabel} from '../../../lib/tokens';
+import {checkLaunchMetadata} from '../../../lib/metadata';
+import {deriveEpochPda} from '@stolons/sdk';
+import type {readReproduction,ReproductionAction} from '@stolons/sdk/devnet-reproduction';
+import type {RootLaunchInput} from '@stolons/sdk/devnet-launch';
+type State=Awaited<ReturnType<typeof readReproduction>>&{observedAt:number};
+export default function ReproductionPage(){
+ const {mint:mintText}=useParams<{mint:string}>(),{connection}=useConnection(),wallet=useWallet();
+ const program=useMemo(()=>new PublicKey(STOLONS_PROGRAM_ID),[]),walletText=wallet.publicKey?.toBase58();
+ const [state,setState]=useState<State|null>(null),[refresh,setRefresh]=useState(0),[selectedRound,setSelectedRound]=useState('latest'),[olderRound,setOlderRound]=useState(''),[nowMs,setNowMs]=useState(Date.now()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loadError,setLoadError]=useState(''),[message,setMessage]=useState(''),[signature,setSignature]=useState(''),[uncertain,setUncertain]=useState(false),[amount,setAmount]=useState('1000');
+ const mintSigner=useRef<Keypair|null>(null);const [launchPreview,setLaunchPreview]=useState<{input:RootLaunchInput&{parentMint:PublicKey};cost:number}|null>(null);
+ useEffect(()=>{setState(null);setSelectedRound('latest');setLaunchPreview(null);mintSigner.current=null;setUncertain(false);setSignature('');},[mintText]);
+ const busyRef=useRef(busy);busyRef.current=busy;
+ useEffect(()=>{let cancelled=false;let timer:ReturnType<typeof setTimeout>;let delay=15000;
+ async function load(){
+  if(cancelled)return;
+  if(busyRef.current||document.visibilityState==='hidden'){timer=setTimeout(load,15000);return;}
+  try{const api=await import('@stolons/sdk/devnet-reproduction');const value=await api.readReproduction(connection,program,new PublicKey(mintText),walletText?new PublicKey(walletText):undefined,selectedRound==='latest'?undefined:BigInt(selectedRound),SOLANA_CLUSTER);if(!cancelled){setState({...value,observedAt:Date.now()});setLoadError('');}delay=15000;}
+  catch(cause){delay=Math.min(delay*2,60000);if(!cancelled){const text=cause instanceof Error?cause.message:'Could not load reproduction.';setLoadError(/429|Too Many Requests/i.test(text)?'Solana RPC is busy. Keeping the last round state and retrying shortly. A confirmed proposal is still on-chain.':text);}}
+  finally{if(!cancelled)timer=setTimeout(load,delay);}
+ }
+ void load();return()=>{cancelled=true;clearTimeout(timer)};
+ },[connection,program,mintText,walletText,selectedRound,refresh]);
+ useEffect(()=>{const timer=setInterval(()=>setNowMs(Date.now()),1000);return()=>clearInterval(timer)},[]);
+ const chainNow=state?state.now+BigInt(Math.max(0,Math.floor((nowMs-state.observedAt)/1000))):0n;
+ const phase=state?.epoch?(state.epoch.status!=='Open'?'closed':chainNow<state.epoch.proposalEnd?'propose':chainNow<state.epoch.voteEnd?'vote':'finalize'):null;
+ const eligible=!!state&&!state.paused&&['RootActive','DescendantActive'].includes(state.parent.status)&&state.parent.activeEpoch.equals(PublicKey.default)&&state.parent.activeCandidate.equals(PublicKey.default)&&state.parent.directChildrenCount<15&&state.reserve>=10000000000000n;
+ const remaining=state?.epoch&&phase&&['propose','vote'].includes(phase)?Number((phase==='propose'?state.epoch.proposalEnd:state.epoch.voteEnd)-chainNow):null;
+ async function transact(action:ReproductionAction){try{requireTransactions();}catch(cause){setError((cause as Error).message);return false;}if(!wallet.publicKey||!wallet.signTransaction||uncertain)return;setBusy(true);setError('');setSignature('');setMessage('Checking on-chain state and simulating…');try{
+  const [api,trade]=await Promise.all([import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/devnet-trade')]);
+  const prepared=await api.buildReproductionAction(connection,program,new PublicKey(mintText),wallet.publicKey,action,SOLANA_CLUSTER);
+  try{const tx=await trade.sendDevnetTrade(connection,prepared,tx=>wallet.signTransaction!(tx));setSignature(tx);setMessage(action.kind==='withdraw'?'Your vote tokens have been returned.':['propose','open-propose'].includes(action.kind)?'Child proposal confirmed. Voting opens after the proposal window; the winning child can then be launched.':'Transaction confirmed. Updating the round…');if(action.kind==='open'||action.kind==='open-propose')setSelectedRound('latest');setRefresh(value=>value+1);return true;}catch(cause){if(cause instanceof trade.TradeSubmittedError){setUncertain(true);setSignature(cause.signature);}throw cause;}
+ }catch(cause){setMessage('');const text=cause instanceof Error?cause.message:'Transaction failed.';setError(!(cause instanceof Error&&cause.name==='TradeSubmittedError')&&/"Custom":6010/.test(text)?'The round changed or its proposal/voting window ended during wallet approval. Nothing was submitted by this action. Refreshing the round: use its current controls below.':text);setRefresh(value=>value+1);}finally{setBusy(false)}return false;}
+ async function vote(proposalId:number){try{const {parseTradeAmount}=await import('@stolons/sdk/devnet-trade');const tokens=parseTradeAmount(amount,6);if(!state?.epochKey)return;await transact({kind:'vote',epoch:state.epochKey,proposalId,amount:tokens});}catch(cause){setError(cause instanceof Error?cause.message:'Invalid vote amount.')}}
+ async function prepareChild(){try{requireTransactions();}catch(cause){setError((cause as Error).message);return;}if(!wallet.publicKey||!wallet.signMessage||!state?.candidate)return;setBusy(true);setError('');setMessage('Recovering the selected child and checking launch details…');try{
+  const [api,reproduction,keys]=await Promise.all([import('@stolons/sdk/devnet-launch'),import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/child-mint')]);
+  const account=await connection.getAccountInfo(state.candidate.proposal,'confirmed');if(!account?.owner.equals(program))throw Error('Winning proposal unavailable.');
+  const proposal=reproduction.decodeProposal(account.data);if(!proposal.proposer.equals(wallet.publicKey))throw Error('Use the wallet that proposed this child.');
+  const signer=await keys.recoverChildMint(program,proposal.epoch,proposal.proposalId,wallet.publicKey,wallet.signMessage,SOLANA_CLUSTER);if(!signer.publicKey.equals(proposal.childMint))throw Error('This proposal uses a different mint key. Recover it with the original launch tooling.');
+  const bytes=await checkLaunchMetadata(proposal.name,proposal.symbol,proposal.metadataUri),hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes)));if(hash.some((byte,index)=>byte!==proposal.metadataHash[index]))throw Error('Metadata changed since this child was proposed.');
+  const input={programId:program,parentMint:new PublicKey(mintText),creator:wallet.publicKey,mint:proposal.childMint,name:proposal.name,symbol:proposal.symbol,metadataUri:proposal.metadataUri,lookupTable:new PublicKey(DEVNET_LAUNCH_LOOKUP_TABLE),cluster:SOLANA_CLUSTER,graduationTargetLamports:GRADUATION_TARGET_LAMPORTS};
+  const prepared=await api.buildDevnetChildLaunch(connection,input),cost=await api.simulateRootLaunch(connection,prepared);mintSigner.current=signer;setLaunchPreview({input,cost});setMessage('Child launch simulation passed. Review the cost, then launch.');
+ }catch(cause){setMessage('');setError(cause instanceof Error?cause.message:'Could not prepare child launch.');}finally{setBusy(false)}}
+ async function launchChild(){try{requireTransactions();}catch(cause){setError((cause as Error).message);return;}if(!launchPreview||!mintSigner.current||!wallet.signTransaction||!wallet.publicKey?.equals(launchPreview.input.creator)||uncertain)return;setBusy(true);setError('');setMessage('Rechecking the selected child before launch…');try{
+  const [api,reproduction,trade]=await Promise.all([import('@stolons/sdk/devnet-launch'),import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/devnet-trade')]);
+  const candidateAccount=await connection.getAccountInfo((await import('@stolons/sdk')).deriveCandidatePda(program,launchPreview.input.mint),'confirmed');if(!candidateAccount?.owner.equals(program))throw Error('Candidate missing.');const candidate=reproduction.decodeCandidate(candidateAccount.data);
+  const proposalAccount=await connection.getAccountInfo(candidate.proposal,'confirmed');if(!proposalAccount?.owner.equals(program))throw Error('Proposal missing.');const proposal=reproduction.decodeProposal(proposalAccount.data);
+  const bytes=await checkLaunchMetadata(proposal.name,proposal.symbol,proposal.metadataUri),hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes)));if(hash.some((byte,index)=>byte!==proposal.metadataHash[index]))throw Error('Metadata changed since proposal.');
+  const prepared=await api.buildDevnetChildLaunch(connection,launchPreview.input);
+  try{const tx=await api.sendChildLaunch(connection,prepared,mintSigner.current,tx=>wallet.signTransaction!(tx));setSignature(tx);setLaunchPreview(null);mintSigner.current=null;setMessage('Child launched and registered. Open its token page to complete graduation.');setRefresh(value=>value+1);}catch(cause){if(cause instanceof trade.TradeSubmittedError){setUncertain(true);setSignature(cause.signature);}throw cause;}
+ }catch(cause){setMessage('');setError(cause instanceof Error?cause.message:'Child launch failed.');}finally{setBusy(false)}}
+ const disabled=!TRANSACTIONS_ENABLED||busy||uncertain||!wallet.signTransaction||!!(state?.vote&&state.vote.voter.toBase58()!==walletText)||!!(state?.epoch&&selectedRound!=='latest'&&state.epoch.epochId.toString()!==selectedRound);
+ const rounds=state?Array.from({length:Number(state.parent.nextEpochId<20n?state.parent.nextEpochId:20n)},(_,i)=>(state.parent.nextEpochId-1n-BigInt(i)).toString()):[];
+ return <main><Navigation/><div className="shell"><section className="page-intro"><div className="breadcrumbs"><Link href="/">Discover</Link><span>/</span><Link href={`/token/${mintText}`}>{shortAddress(mintText)}</Link><span>/</span><span>Reproduction</span></div><div className="eyebrow">THE NEXT BRANCH</div><h1>Grow the next generation.</h1><p>Propose a child, vote with parent tokens, and launch the winning proposal. A child that graduates and settles burns 10M parent tokens.</p></section>
+ <div className="workspace-grid"><div className="token-main">
+ <div className="token-metrics"><article className="card"><span className="label">Parent status</span><div className="metric" style={{fontSize:16}}>{state?statusLabel(state.parent.status):'Loading…'}</div></article><article className="card"><span className="label">Reproduction reserve</span><div className="metric">{state?(Number(state.reserve)/1e12).toLocaleString()+'M':'—'}</div><span className="small">Parent tokens</span></article><article className="card"><span className="label">Successful children</span><div className="metric">{state?.parent.directChildrenCount??'—'} / 15</div></article></div>
+ <article className="card"><div className="panel-title"><h2>Reproduction round</h2><button className="button compact" disabled={busy} onClick={()=>setRefresh(v=>v+1)}>↻ Refresh</button></div>{rounds.length>0&&<><label className="label" htmlFor="round-choice">Round history</label><select id="round-choice" value={selectedRound} disabled={busy} onChange={event=>setSelectedRound(event.target.value)}><option value="latest">Latest round</option>{selectedRound!=='latest'&&!rounds.includes(selectedRound)&&<option value={selectedRound}>Round {selectedRound}</option>}{rounds.map(id=><option key={id} value={id}>Round {id}</option>)}</select>{state&&state.parent.nextEpochId>20n&&<details><summary className="small">Find an older round</summary><form onSubmit={event=>{event.preventDefault();try{if(!/^\d+$/.test(olderRound)||BigInt(olderRound)>=state.parent.nextEpochId)throw Error('Enter an existing round number.');setSelectedRound(BigInt(olderRound).toString());}catch(cause){setError(cause instanceof Error?cause.message:'Invalid round number.');}}}><label className="label" htmlFor="older-round">Round number</label><input id="older-round" inputMode="numeric" value={olderRound} onChange={event=>setOlderRound(event.target.value)}/><button className="button" type="submit" disabled={busy}>Open round history</button></form></details>}</>}
+ <p className="small">{state?.epoch?`Round ${state.epoch.epochId} · ${phase==='propose'?'Proposals open':phase==='vote'?'Voting open':phase==='finalize'?'Ready to finalize':state.epoch.status==='NoWinner'?'Closed without a winner':'Winner selected'}`:'No reproduction round yet.'}{remaining!==null&&` · ${Math.max(0,remaining)}s remaining`}</p>{state&&<p className="small">Proposal window: {String(state.proposalWindow)}s · Voting window: {String(state.votingWindow)}s</p>}
+ {eligible&&<p className="notice">Submit the child form below to open a round and add its first proposal together. The timer starts when that transaction confirms.</p>}{phase==='finalize'&&state?.epochKey&&<button className="button primary" disabled={disabled} onClick={()=>transact({kind:'finalize',epoch:state.epochKey!})}>{state.epoch!.highestSupport===0n?'Close round without winner':'Finalize winning proposal'} ↗</button>}
+ {!state&& !error&&<p className="small" role="status">Reading on-chain round state…</p>}
+ </article>
+ {state?.vote&&<article className="card"><h2>Your vote</h2><p className="small">{(Number(state.vote.amount)/1e6).toLocaleString()} parent tokens · {state.vote.withdrawn?'Returned to your wallet':phase==='closed'?'Ready to withdraw':'Escrowed until round finalization'}</p>{!state.vote.withdrawn&&phase==='closed'&&state.epochKey&&<button className="button primary" disabled={disabled} onClick={()=>transact({kind:'withdraw',epoch:state.epochKey!})}>Return my vote tokens ↗</button>}</article>}
+ {(eligible||(phase==='propose'&&state?.epochKey&&!state.paused&&state.epoch!.proposalCount<32))&&state&&<ChildProposalForm program={program} epoch={eligible?deriveEpochPda(program,new PublicKey(mintText),state.parent.nextEpochId):state.epochKey!} proposalId={eligible?0:state.epoch!.proposalCount} fee={state.proposalFee} opensRound={eligible} busy={busy||uncertain||!TRANSACTIONS_ENABLED} onError={setError} onBusyChange={setBusy} onSubmit={async args=>!!await transact(eligible?{kind:'open-propose',epoch:deriveEpochPda(program,new PublicKey(mintText),state.parent.nextEpochId),args}:{kind:'propose',epoch:state.epochKey!,args})}/>}
+ {state?.epoch&&<article className="card"><div className="panel-title"><h2>Child proposals</h2><span>{state.proposals.length} PROPOSALS</span></div>{state.proposals.length===0&&<p className="small">No confirmed proposals in this round yet.</p>}{phase==='propose'&&<p className="notice">Voting opens in {Math.max(0,Number(state.epoch.proposalEnd-chainNow))}s. Child proposals appear here before launch; the winning proposal becomes a token after voting and finalization.</p>}{phase==='finalize'&&<p className="notice">Voting has ended. Finalize this round above to select a child, or close it if no votes were cast. An unselected proposal cannot launch; propose it again in a new round.</p>}{phase==='vote'&&!state.vote&&<><label className="label" htmlFor="vote-amount">Parent tokens to escrow</label><input id="vote-amount" inputMode="decimal" value={amount} onChange={event=>setAmount(event.target.value)}/><p className="small">One vote per wallet per round. Escrowed tokens are returned after finalization. Highest token support wins; ties go to the earlier proposal.</p></>}{state.proposals.map(proposal=><div className="proposal-row" key={proposal.proposalId}><div><strong>{proposal.name} <span className="muted">${proposal.symbol}</span></strong><p className="small">{(Number(proposal.supportAmount)/1e6).toLocaleString()} parent tokens · By {shortAddress(proposal.proposer.toBase58())}{proposal.proposalId===state.epoch!.winningProposalId&&state.epoch!.highestSupport>0n?' · '+(phase==='closed'?'Winner':'Leading'):''}</p><a className="text-link" href={/^https:\/\//.test(proposal.metadataUri)?proposal.metadataUri:undefined} target="_blank" rel="noopener noreferrer">Token details ↗</a></div>{phase==='vote'&&!state.vote&&!state.paused&&<button className="button" disabled={disabled} onClick={()=>vote(proposal.proposalId)}>Vote ↗</button>}</div>)}</article>}
+ {state?.candidate&&<article className="card"><div className="panel-title"><h2>Selected child</h2><span>{state.candidate.status.toUpperCase()}</span></div><p className="small">{shortAddress(state.candidate.childMint.toBase58())} · Proposed by {shortAddress(state.candidate.proposer.toBase58())}</p>{state.candidate.status==='Selected'?<><p className="small">Launch deadline: {new Date(Number(state.candidate.launchDeadline)*1000).toLocaleString()}. Launch using the proposer wallet.</p>{!launchPreview?<button className="button primary" disabled={disabled||!wallet.signMessage||walletText!==state.candidate.proposer.toBase58()||chainNow>state.candidate.launchDeadline} onClick={prepareChild}>Preview child launch →</button>:<><p className="notice">Launch {launchPreview.input.name} (${launchPreview.input.symbol}). Estimated cost: {(launchPreview.cost/1e9).toFixed(6)} {SOL_LABEL}.</p><div className="actions"><button className="button primary" disabled={disabled||!wallet.publicKey?.equals(launchPreview.input.creator)} onClick={launchChild}>Sign and launch child ↗</button><button className="button" disabled={busy} onClick={()=>setLaunchPreview(null)}>Cancel preview</button></div></>}</>:<><p className="small">Migration deadline: {new Date(Number(state.candidate.migrationDeadline)*1000).toLocaleString()}.</p><div className="notice">Graduate and activate this child to settle the family. Settlement burns 10M parent tokens and activates the child’s reproduction reserve.</div><Link className="button primary" href={`/token/${state.candidate.childMint.toBase58()}`}>Open child token →</Link></>}
+ {((state.candidate.status==='Selected'&&chainNow>state.candidate.launchDeadline)||(state.candidate.status==='Launched'&&chainNow>state.candidate.migrationDeadline))&&<div className="actions"><button className="button" disabled={disabled} onClick={()=>transact({kind:'expire'})}>Release expired candidate ↗</button></div>}</article>}
+ <div aria-live="polite">{loadError&&<button className="button" disabled={busy} onClick={()=>setRefresh(value=>value+1)}>Refresh round state ↻</button>}{message&&<p className="notice">{message}</p>}{(error||loadError)&&<p className="error" role="alert">{error||loadError}</p>}{signature&&<a className="text-link" href={`https://explorer.solana.com/tx/${signature}${EXPLORER_QUERY}`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}{uncertain&&<div className="notice">Inspect the submitted transaction before trying another action.<button className="button" onClick={()=>{setUncertain(false);setRefresh(v=>v+1)}}>I checked; refresh state</button></div>}</div>
+ </div><aside className="launch-aside"><article className="card"><h2>One child at a time.</h2><p className="small">An active parent can have up to 15 successful direct children. Each settlement consumes 10M tokens from its 150M reproduction reserve.</p><p className="small">Voting locks existing parent tokens temporarily. A losing vote does not burn your tokens.</p><Link className="button" href={`/token/${mintText}`}>Back to parent token →</Link></article><div className="notice">Child graduation target: {Number(GRADUATION_TARGET_LAMPORTS??0n)/1e9} {SOL_LABEL}. Graduation activation is handled automatically.</div></aside></div><Footer /></div></main>;
 }

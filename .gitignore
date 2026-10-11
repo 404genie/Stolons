@@ -9,3 +9,5 @@ coverage/
 *.log
 Anchor.toml.local
 keypairs/
+.stolons-uploads/
+*.tsbuildinfo

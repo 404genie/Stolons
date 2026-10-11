@@ -136,3 +136,13 @@ pub struct Candidate {
 }
 impl Candidate { pub const SPACE: usize = 8 + 7 * 32 + 1 + 8 * 5 + 1 + 1 + 1; }
 
+
+#[account]
+pub struct FeeDistribution {
+    pub mint: Pubkey,
+    pub pool: Pubkey,
+    pub collected_0: u128,
+    pub collected_1: u128,
+    pub bump: u8,
+}
+impl FeeDistribution { pub const SPACE: usize = 8 + 32 + 32 + 16 + 16 + 1; }
