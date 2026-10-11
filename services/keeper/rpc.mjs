@@ -1,4 +1,4 @@
-const retryableReads=new Set(['getGenesisHash','getAccountInfo','getMultipleAccounts','getProgramAccounts','getBalance','getLatestBlockhash','getSignatureStatuses','getSignaturesForAddress','getTransaction','getBlockHeight','simulateTransaction']);
+const retryableReads=new Set(['getGenesisHash','getAccountInfo','getMultipleAccounts','getProgramAccounts','getBlockTime','getBalance','getLatestBlockhash','getSignatureStatuses','getSignaturesForAddress','getTransaction','getBlockHeight','simulateTransaction']);
 /** Retry only read-only rate limits, never a transaction submission. */
 export function readRetryFetch(fetcher=fetch,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
  return async(url,options)=>{

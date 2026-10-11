@@ -153,3 +153,11 @@ node scripts/devnet/trace-graduation-clock.mjs GKQWxEXuhPCKH4awCBJ4gb2QSiS2xEUcD
 ```
 
 It compares the final stored timestamp against the final curve buy and migration transaction. It classifies instructions only inside the canonical LaunchLab invocation and reports missing or same-second evidence as inconclusive. It sends no transaction and does not launch a token. The final account state cannot prove when the status-1 timestamp was first set or whether migration overwrote it, so this trace alone cannot close finding 2. A source verification or historical/live status-1 account snapshot is still required. Optional `TRACE_RPC_URL` may be configured privately for better history availability.
+
+To directly observe an intermediate state without trading or deploying, run the bounded mainnet observer:
+
+```bash
+node scripts/production/observe-pending-migration.mjs
+```
+
+It scans finalized canonical LaunchLab SOL pools for up to five minutes, requiring status 1, a positive locked reserve, zero cliff/unlock, and a positive timestamp no later than the sampled block time. It validates owner, discriminator, canonical config and pool PDA; it saves the full public account bytes, hash and RPC context slot under `target/mainnet/status1-clock-*.json`. A captured snapshot demonstrates a nonzero timestamp before migration for that observed pool. It does not test the Stolons expiry transaction. No captured pool, unavailable scan/history, or rate limits are inconclusive outcomes, not release approval. A dedicated endpoint may be supplied privately as `OBSERVATION_RPC_URL`.
