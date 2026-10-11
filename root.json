@@ -1,0 +1,5 @@
+{
+  "name": "Stolons Root",
+  "symbol": "STROOT",
+  "description": "Devnet-only Stolons root token for lifecycle integration tests. No real monetary value."
+}
