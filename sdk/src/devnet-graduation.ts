@@ -1,17 +1,17 @@
+import {assertCluster,raydiumPrograms} from './network.js';
 import { Connection, PublicKey, ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { DEVNET_PROGRAM_ID, ALL_PROGRAM_ID, LaunchpadPool, getPdaLaunchpadAuth, getPdaVestId } from '@raydium-io/raydium-sdk-v2';
+import { LaunchpadPool, getPdaLaunchpadAuth, getPdaVestId } from '@raydium-io/raydium-sdk-v2';
 import { StolonsClient } from './client.js';
 import { buildInstruction } from './builders.js';
 import { deriveConfigPda, deriveLineagePda, deriveCandidatePda, deriveFamilyPda, deriveReproductionAuthorityPda, deriveReproductionVaultPda, deriveVaultAuthorityPda } from './pda.js';
 import { deriveCpmmPool, deriveLaunchLabPool } from './raydium.js';
-import { decodeLaunchConfig, DEVNET_GENESIS_HASH } from './launch-validation.js';
+import { decodeLaunchConfig } from './launch-validation.js';
 import { SYSTEM_PROGRAM_ID } from './constants.js';
 export type GraduationPhase = 'trading' | 'migrating' | 'register' | 'claim' | 'activate' | 'active';
 export async function readGraduation(connection: Connection, programId: PublicKey, mint: PublicKey, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
-  const expectedGenesis=cluster==='devnet'?DEVNET_GENESIS_HASH:'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
-  if (await connection.getGenesisHash() !== expectedGenesis) throw new Error('Graduation RPC cluster mismatch.');
-  const programs=cluster==='devnet'?DEVNET_PROGRAM_ID:ALL_PROGRAM_ID;
+  await assertCluster(connection,cluster);
+  const programs=raydiumPrograms(cluster);
   const client = new StolonsClient(connection, programId), config = deriveConfigPda(programId);
   const [account, lineage] = await Promise.all([connection.getAccountInfo(config,'confirmed'),client.getLineage(mint)]);
   if (!account?.owner.equals(programId) || !lineage) throw new Error('Stolons lineage or configuration is missing.');
@@ -50,5 +50,5 @@ export async function buildGraduationStep(connection: Connection, programId: Pub
   const message=new TransactionMessage({payerKey:payer,recentBlockhash:latest.blockhash,instructions:[ComputeBudgetProgram.setComputeUnitLimit({units:400000}),instruction]});
   const transaction=new VersionedTransaction(message.compileToV0Message(table?[table]:[]));
   if (transaction.serialize().length>1232) throw new Error('Graduation transaction requires the shared lookup table.');
-  return { transaction,latest,quote:{quotedAt:Date.now()},phase,state };
+  return { transaction,latest,quote:{quotedAt:Date.now()},phase,state,cluster };
 }

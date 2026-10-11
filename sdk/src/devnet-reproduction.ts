@@ -1,10 +1,11 @@
+import {clusterGenesis,raydiumPrograms,type SolanaCluster} from "./network.js";
 import {Connection,PublicKey,SYSVAR_CLOCK_PUBKEY,ComputeBudgetProgram,TransactionMessage,VersionedTransaction} from '@solana/web3.js';
 import {Buffer} from 'buffer';
 import {getAssociatedTokenAddressSync,createAssociatedTokenAccountIdempotentInstruction} from '@solana/spl-token';
 import {decodeLineage} from './client.js';
 import {buildInstruction} from './builders.js';
 import {deriveConfigPda,deriveLineagePda,deriveEpochPda,deriveProposalPda,deriveCandidatePda,deriveProposedMintPda,deriveVotePda,deriveVoteAuthorityPda,deriveVoteEscrowPda,deriveVaultAuthorityPda,deriveReproductionVaultPda} from './pda.js';
-import {DEVNET_GENESIS_HASH,decodeLaunchConfig,validateLaunchDetails} from './launch-validation.js';
+import {decodeLaunchConfig,validateLaunchDetails} from './launch-validation.js';
 import {TOKEN_PROGRAM_ID,SYSTEM_PROGRAM_ID} from './constants.js';
 import type {SubmitProposalArgs} from './types.js';
 function checked(data:Uint8Array,discriminator:number[],length:number){const b=Buffer.from(data);if(b.length<length||!b.subarray(0,8).equals(Buffer.from(discriminator)))throw Error('Invalid reproduction account.');return b;}
@@ -14,18 +15,19 @@ export function decodeProposal(data:Uint8Array){const b=checked(data,[26,94,189,
 export function decodeCandidate(data:Uint8Array){const b=checked(data,[86,69,250,96,193,10,222,123],276);const status=['Proposed','Selected','Launched','Qualified','Expired','Settled','Orphan'][b[168]!];if(!status)throw Error('Invalid candidate status.');return {parentMint:key(b,8),childMint:key(b,40),epoch:key(b,72),proposal:key(b,104),proposer:key(b,136),status,launchDeadline:b.readBigInt64LE(177),migrationDeadline:b.readBigInt64LE(193),launchPool:key(b,209),cpmmPool:key(b,241),reserveClaimed:b[273]!==0,settled:b[274]!==0};}
 export function decodeVote(data:Uint8Array){const b=checked(data,[104,20,204,252,45,84,37,195],114);return {voter:key(b,8),epoch:key(b,40),proposal:key(b,72),amount:b.readBigUInt64LE(104),withdrawn:b[112]!==0};}
 export function roundPhase(epoch:ReturnType<typeof decodeEpoch>,now:bigint){return epoch.status!=='Open'?'closed':now<epoch.proposalEnd?'propose':now<epoch.voteEnd?'vote':'finalize';}
-const verifiedConnections=new WeakMap<Connection,Promise<void>>();
-async function verifyConnection(connection:Connection){
+const verifiedConnections=new WeakMap<Connection,Promise<string>>();
+async function verifyConnection(connection:Connection,cluster:SolanaCluster){
  let pending=verifiedConnections.get(connection);
- if(!pending){pending=connection.getGenesisHash().then(hash=>{if(hash!==DEVNET_GENESIS_HASH)throw Error('Reproduction is enabled on Solana devnet only.');});verifiedConnections.set(connection,pending);}
- try{await pending;}catch(error){verifiedConnections.delete(connection);throw error;}
+ if(!pending){pending=connection.getGenesisHash();verifiedConnections.set(connection,pending);}
+ try{if(await pending!==clusterGenesis(cluster))throw Error(`Reproduction RPC cluster mismatch: ${cluster} only.`);}catch(error){verifiedConnections.delete(connection);throw error;}
 }
-export async function readReproduction(connection:Connection,program:PublicKey,parentMint:PublicKey,voter?:PublicKey,epochId?:bigint){
- await verifyConnection(connection);
+export async function readReproduction(connection:Connection,program:PublicKey,parentMint:PublicKey,voter?:PublicKey,epochId?:bigint,cluster:SolanaCluster='devnet'){
+ await verifyConnection(connection,cluster);
  const [parentAccount,configAccount,clock]=await connection.getMultipleAccountsInfo([deriveLineagePda(program,parentMint),deriveConfigPda(program),SYSVAR_CLOCK_PUBKEY],'confirmed');
  const parent=parentAccount?.owner.equals(program)?decodeLineage(parentAccount.data):null;
  if(!parent||!configAccount?.owner.equals(program)||!clock||clock.data.length<40)throw Error('Reproduction configuration or lineage missing.');
- const bytes=Buffer.from(configAccount.data);const paused=bytes[304]!==0;bytes[304]=0;decodeLaunchConfig(bytes);
+ const bytes=Buffer.from(configAccount.data);const paused=bytes[304]!==0;bytes[304]=0;const config=decodeLaunchConfig(bytes),programs=raydiumPrograms(cluster);
+ if(!config.launchpad.equals(programs.LAUNCHPAD_PROGRAM)||!config.launchConfig.equals(programs.LAUNCHPAD_CONFIG)||!key(bytes,104).equals(programs.CREATE_CPMM_POOL_PROGRAM)||config.quote.toBase58()!=='So11111111111111111111111111111111111111112')throw Error('Reproduction configuration does not match the selected cluster.');
  const now=clock.data.readBigInt64LE(32),selectedId=epochId??(parent.nextEpochId>0n?parent.nextEpochId-1n:null);
  if(selectedId!==null&&(selectedId<0n||selectedId>=parent.nextEpochId))throw Error('Round does not exist.');
  const epochKey=selectedId===null?null:deriveEpochPda(program,parentMint,selectedId);
@@ -48,11 +50,11 @@ export async function readReproduction(connection:Connection,program:PublicKey,p
  return {parent,epoch,epochKey,proposals,vote,candidate,now,paused,proposalWindow:bytes.readBigUInt64LE(264),votingWindow:bytes.readBigUInt64LE(272),proposalFee:bytes.readBigUInt64LE(296),treasury:key(bytes,40),reserve:vault?BigInt(vault.value.amount):0n};
 }
 export type ReproductionAction={kind:'open'}|{kind:'open-propose';epoch:PublicKey;args:SubmitProposalArgs}|{kind:'propose';epoch:PublicKey;args:SubmitProposalArgs}|{kind:'vote';epoch:PublicKey;proposalId:number;amount:bigint}|{kind:'finalize';epoch:PublicKey}|{kind:'withdraw';epoch:PublicKey}|{kind:'expire'};
-export async function buildReproductionAction(connection:Connection,program:PublicKey,parentMint:PublicKey,payer:PublicKey,action:ReproductionAction){
+export async function buildReproductionAction(connection:Connection,program:PublicKey,parentMint:PublicKey,payer:PublicKey,action:ReproductionAction,cluster:SolanaCluster='devnet'){
  // Read the requested historical round for withdrawals, never silently switch rounds.
  let requested:bigint|undefined;
  if('epoch'in action&&action.kind!=='open-propose'){const account=await connection.getAccountInfo(action.epoch,'confirmed');if(!account?.owner.equals(program))throw Error('Round missing.');requested=decodeEpoch(account.data).epochId;if(!deriveEpochPda(program,parentMint,requested).equals(action.epoch))throw Error('Wrong parent round.');}
- const state=await readReproduction(connection,program,parentMint,payer,requested),{parent,epoch,epochKey}=state;
+ const state=await readReproduction(connection,program,parentMint,payer,requested,cluster),{parent,epoch,epochKey}=state;
  if(state.paused&&['open','open-propose','propose','vote'].includes(action.kind))throw Error('Protocol is paused.');
  const config=deriveConfigPda(program),parentKey=deriveLineagePda(program,parentMint),base={config,parent:parentKey,parent_mint:parentMint},instructions=[];
  if(action.kind==='open'||action.kind==='open-propose'){
@@ -89,5 +91,5 @@ export async function buildReproductionAction(connection:Connection,program:Publ
  }
  const latest=await connection.getLatestBlockhash('confirmed');const transaction=new VersionedTransaction(new TransactionMessage({payerKey:payer,recentBlockhash:latest.blockhash,instructions:[ComputeBudgetProgram.setComputeUnitLimit({units:400000}),...instructions]}).compileToV0Message());
  if(transaction.serialize().length>1232)throw Error('Reproduction transaction exceeds the network packet limit.');
- return {transaction,latest,quote:{quotedAt:Date.now()},state};
+ return {transaction,latest,quote:{quotedAt:Date.now()},state,cluster};
 }

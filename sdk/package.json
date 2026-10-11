@@ -14,7 +14,8 @@
     "./launch-validation": "./dist/launch-validation.js",
     "./devnet-reproduction": "./dist/devnet-reproduction.js",
     "./child-mint": "./dist/child-mint.js",
-    "./verify-family": "./dist/verify-family.js"
+    "./verify-family": "./dist/verify-family.js",
+    "./network": "./dist/network.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

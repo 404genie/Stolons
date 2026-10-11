@@ -3,8 +3,15 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {Keypair,PublicKey} from '@solana/web3.js';
 import {validateManifest,inspectMainnet} from '../../scripts/production/preflight.mjs';
+import {productionEnvironment} from '../../scripts/production/prepare-environment.mjs';
 const template=JSON.parse(await readFile(new URL('../../production/manifest.example.json',import.meta.url)));
 function manifest(){return {...template,...Object.fromEntries(['programId','upgradeAuthority','configAuthority','treasury','platformConfig','cpmmConfig','lookupTable','keeperWallet'].map(field=>[field,Keypair.generate().publicKey.toBase58()])),proposalFeeLamports:'10000000',graduationTargetLamports:'85000000000',platformFeeRate:5000,creatorFeeRate:5000};}
+test('production environment uses manifest identities and keeps transactions closed',()=>{
+ const m=manifest(),text=productionEnvironment(m,'https://rpc.example.com/browser');
+ assert.ok(text.includes(m.programId));assert.ok(text.includes(m.lookupTable));assert.match(text,/NEXT_PUBLIC_ENABLE_MAINNET_TRANSACTIONS="false"/);assert.match(text,/85000000000/);
+ assert.ok(!text.includes(m.upgradeAuthority));assert.ok(!text.includes(m.keeperWallet));
+ for(const rpc of ['http://rpc.example.com','https://user:secret@rpc.example.com','https://api.mainnet-beta.solana.com','https://rpc.example.com\nBAD=value'])assert.throws(()=>productionEnvironment(m,rpc));
+});
 test('production manifest requires explicit addresses, nonzero revenue and longer launch windows',()=>{
  assert.throws(()=>validateManifest(template),/programId/);
  assert.equal(validateManifest(manifest()).cluster,'mainnet-beta');

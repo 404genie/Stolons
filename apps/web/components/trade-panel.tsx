@@ -1,4 +1,5 @@
 "use client";
+import {SOLANA_CLUSTER,NETWORK_LABEL,EXPLORER_QUERY,TRANSACTIONS_ENABLED,requireTransactions} from "../lib/network";
 
 import { useEffect, useState, type FormEvent } from "react";
 import { PublicKey } from "@solana/web3.js";
@@ -54,12 +55,13 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
 
   async function preview(event: FormEvent) {
     event.preventDefault();
+    try{requireTransactions();}catch(cause){setError((cause as Error).message);return;}
     if (!wallet.publicKey) { setError("Connect your wallet first."); return; }
     setBusy(true); setError(""); setQuote(null); setMessage("Calculating your quote and simulating the trade…");
     try {
       const api = await import("@stolons/sdk/devnet-trade");
       const slippageBps = Number(slippage) * 100;
-      const next = await api.quoteDevnetTrade(connection, { programId: new PublicKey(STOLONS_PROGRAM_ID), mint: new PublicKey(mint), owner: wallet.publicKey, side, amount: api.parseTradeAmount(amount, side === "buy" ? 9 : 6), slippageBps });
+      const next = await api.quoteDevnetTrade(connection, { programId: new PublicKey(STOLONS_PROGRAM_ID), mint: new PublicKey(mint), owner: wallet.publicKey, side, amount: api.parseTradeAmount(amount, side === "buy" ? 9 : 6), slippageBps,cluster:SOLANA_CLUSTER });
       const prepared = await api.buildDevnetTrade(connection, next);
       await api.simulateDevnetTrade(connection, prepared);
       setOutputText(api.formatTradeAmount(next.output, side === "buy" ? 6 : 9));
@@ -71,13 +73,14 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
   }
 
   async function trade() {
+    try{requireTransactions();}catch(cause){setError((cause as Error).message);return;}
     if (!quote || !wallet.publicKey || !wallet.signTransaction || !quote.input.owner.equals(wallet.publicKey) || quote.input.mint.toBase58() !== mint) { setQuote(null); setError("Wallet or token changed. Preview again."); return; }
     setBusy(true); setError(""); setMessage("Rechecking the price before wallet approval…");
     try {
       const api = await import("@stolons/sdk/devnet-trade");
       const prepared = await api.buildDevnetTrade(connection, quote);
       const tx = await api.sendDevnetTrade(connection, prepared, tx => wallet.signTransaction!(tx));
-      setSignature(tx); setQuote(null); setAmount(""); setBalanceRefresh(value => value + 1); setMessage("Trade confirmed on devnet.");
+      setSignature(tx); setQuote(null); setAmount(""); setBalanceRefresh(value => value + 1); setMessage(`Trade confirmed on ${NETWORK_LABEL}.`);
     } catch (cause) {
       setQuote(null); setMessage("");
       const api = await import("@stolons/sdk/devnet-trade");
@@ -87,11 +90,11 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
   }
 
   return <section className="card launch-form trade-panel" aria-labelledby="trade-heading">
-    <div className="panel-title"><h2 id="trade-heading">Trade</h2><span>DEVNET</span></div>
+    {!TRANSACTIONS_ENABLED&&<p className="notice">Mainnet trading is not open yet.</p>}<div className="panel-title"><h2 id="trade-heading">Trade</h2><span>{NETWORK_LABEL.toUpperCase()}</span></div>
     <p className="small">{graduated ? 'Raydium CPMM.' : 'Raydium bonding curve.'} Quotes include trading fees. Network fees and account rent are additional.</p>
     <>
       <form onSubmit={preview}>
-        <fieldset disabled={busy || uncertain}>
+        <fieldset disabled={busy || uncertain || !TRANSACTIONS_ENABLED}>
           <div className="actions" role="group" aria-label="Trade direction">
             <button className={`button ${side === "buy" ? "primary" : ""}`} type="button" aria-pressed={side === "buy"} onClick={() => setSide("buy")}>Buy</button>
             <button className={`button ${side === "sell" ? "primary" : ""}`} type="button" aria-pressed={side === "sell"} onClick={() => setSide("sell")}>Sell</button>
@@ -108,12 +111,12 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
         {quote.input.side === "buy" && <p>SOL spend: {spendText}{quote.capped ? " · Limited to the remaining curve allocation. Excess SOL stays in your wallet." : ""}</p>}
         <p>Estimated received: {outputText} {side === "buy" ? "tokens" : "SOL"}</p>
         <p>Minimum received: {minimumText} {side === "buy" ? "tokens" : "SOL"}</p>
-        <button className="button primary" type="button" disabled={busy || !wallet.signTransaction} onClick={trade}>Confirm {side} ↗</button>
+        <button className="button primary" type="button" disabled={busy || !wallet.signTransaction || !TRANSACTIONS_ENABLED} onClick={trade}>Confirm {side} ↗</button>
       </div>}
     </>
     {message && <p className="small" role="status">{message}</p>}
     {error && <p className="error" role="alert">{error}</p>}
-    {signature && <p><a href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction</a></p>}
+    {signature && <p><a href={`https://explorer.solana.com/tx/${signature}${EXPLORER_QUERY}`} target="_blank" rel="noopener noreferrer">View transaction</a></p>}
     {uncertain && <button type="button" className="button" onClick={() => { setUncertain(false); setError(""); }}>I checked the transaction; start a new trade</button>}
   </section>;
 }

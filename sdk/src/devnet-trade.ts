@@ -1,13 +1,14 @@
+import {assertCluster,raydiumPrograms,type SolanaCluster} from "./network.js";
 import { Connection, PublicKey, Keypair, SystemProgram, ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID, ACCOUNT_SIZE, getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, createInitializeAccountInstruction, createCloseAccountInstruction } from '@solana/spl-token';
-import { DEVNET_PROGRAM_ID, ALL_PROGRAM_ID, LaunchpadPool, LaunchpadConfig, PlatformConfig, Curve, getPdaLaunchpadPoolId, getPdaLaunchpadAuth, getPdaPlatformVault, getPdaCreatorVault, buyExactInInstruction, sellExactInInstruction, CpmmPoolInfoLayout, CpmmConfigInfoLayout, CurveCalculator, FeeOn, makeSwapCpmmBaseInInstruction, getPdaPoolAuthority } from '@raydium-io/raydium-sdk-v2';
+import { LaunchpadPool, LaunchpadConfig, PlatformConfig, Curve, getPdaLaunchpadPoolId, getPdaLaunchpadAuth, getPdaPlatformVault, getPdaCreatorVault, buyExactInInstruction, sellExactInInstruction, CpmmPoolInfoLayout, CpmmConfigInfoLayout, CurveCalculator, FeeOn, makeSwapCpmmBaseInInstruction, getPdaPoolAuthority } from '@raydium-io/raydium-sdk-v2';
 import { deriveCpmmPool } from "./raydium.js";
 import { deriveConfigPda } from './pda.js';
 import { StolonsClient } from './client.js';
-import { decodeLaunchConfig, DEVNET_GENESIS_HASH } from './launch-validation.js';
+import { decodeLaunchConfig } from './launch-validation.js';
 
 export type TradeSide = 'buy' | 'sell';
-export interface TradeInput { programId: PublicKey; mint: PublicKey; owner: PublicKey; side: TradeSide; amount: bigint; slippageBps: number }
+export interface TradeInput { programId: PublicKey; mint: PublicKey; owner: PublicKey; side: TradeSide; amount: bigint; slippageBps: number; cluster?:SolanaCluster }
 export function parseTradeAmount(text: string, decimals: number): bigint {
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 9 || !/^\d+(\.\d+)?$/.test(text.trim())) throw new Error('Enter a positive decimal amount.');
   const [whole, fraction = ''] = text.trim().split('.');
@@ -27,10 +28,9 @@ export function tradeMinimum(output: bigint, slippageBps: number): bigint {
   if (minimum <= 0n) throw new Error('Trade is too small to produce a positive minimum output.');
   return minimum;
 }
-async function readMarket(connection: Connection, input: TradeInput, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
-  const expectedGenesis=cluster==='devnet'?DEVNET_GENESIS_HASH:'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
-  if (await connection.getGenesisHash() !== expectedGenesis) throw new Error('Trading is enabled on Solana devnet only; market RPC cluster mismatch.');
-  const programs=cluster==='devnet'?DEVNET_PROGRAM_ID:ALL_PROGRAM_ID;
+async function readMarket(connection: Connection, input: TradeInput, cluster: 'devnet' | 'mainnet-beta' = input.cluster??'devnet') {
+  await assertCluster(connection,cluster);
+  const programs=raydiumPrograms(cluster);
   const account = await connection.getAccountInfo(deriveConfigPda(input.programId), 'confirmed');
   if (!account?.owner.equals(input.programId)) throw new Error('Stolons configuration is missing.');
   const c = decodeLaunchConfig(account.data);
@@ -121,7 +121,7 @@ export async function buildDevnetTrade(connection: Connection, quote: TradeQuote
   const latest = await connection.getLatestBlockhash('confirmed');
   const transaction = new VersionedTransaction(new TransactionMessage({ payerKey: owner, recentBlockhash: latest.blockhash, instructions }).compileToV0Message());
   if (transaction.serialize().length > 1232) throw new Error('Trade transaction exceeds the network size limit.');
-  return { transaction, latest, quote, expectedOutput: fresh.output };
+  return { transaction, latest, quote, expectedOutput: fresh.output, cluster:quote.input.cluster??'devnet' };
 }
 export type PreparedTrade = Awaited<ReturnType<typeof buildDevnetTrade>>;
 export async function simulateDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction }) {
@@ -139,8 +139,8 @@ function signatureBase58(bytes: Uint8Array): string {
   for (const byte of bytes) { if (byte !== 0) break; text = '1' + text; }
   return text;
 }
-export async function sendDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction; latest: { blockhash: string; lastValidBlockHeight: number }; quote: { quotedAt: number } }, signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>) {
-  if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error('Trading is enabled on Solana devnet only.');
+export async function sendDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction; latest: { blockhash: string; lastValidBlockHeight: number }; quote: { quotedAt: number }; cluster?:SolanaCluster }, signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>) {
+  await assertCluster(connection,prepared.cluster??'devnet');
   if (Date.now() - prepared.quote.quotedAt > 60_000) throw new Error('Quote expired. Preview the trade again.');
   const simulationSlot = await simulateDevnetTrade(connection, prepared);
   // Snapshot before the wallet can mutate the transaction in place.
