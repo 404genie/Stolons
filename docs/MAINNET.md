@@ -161,3 +161,13 @@ node scripts/production/observe-pending-migration.mjs
 ```
 
 It scans finalized canonical LaunchLab SOL pools for up to five minutes, requiring status 1, a positive locked reserve, zero cliff/unlock, and a positive timestamp no later than the sampled block time. It validates owner, discriminator, canonical config and pool PDA; it saves the full public account bytes, hash and RPC context slot under `target/mainnet/status1-clock-*.json`. A captured snapshot demonstrates a nonzero timestamp before migration for that observed pool. It does not test the Stolons expiry transaction. No captured pool, unavailable scan/history, or rate limits are inconclusive outcomes, not release approval. A dedicated endpoint may be supplied privately as `OBSERVATION_RPC_URL`.
+
+## Focused devnet runtime probe (owner authorized)
+
+```bash
+node scripts/devnet/verify-fundraising-clock.mjs --apply
+```
+
+This uses the existing version-2 devnet deployment. It transfers 1.3 test SOL from `keypairs/devnet-wallet.json` into a new dedicated test creator, launches one root with the current 70/15/15 allocation, then performs a signed simulation of the completing buy. Simulation returns the post-instruction pool and Clock sysvar together, so a migration crank cannot race that observation. The completing buy is never broadcast. The probe asserts status 1, zero cliff/unlock, exactly 150M locked, canonical pool identities, a 1 SOL devnet target, and a positive vesting timestamp equal to the simulated bank clock. It verifies the trace contains a buy and no migration instruction.
+
+It writes public evidence to `target/devnet/fundraising-clock-test.json` and private test keys under ignored `keypairs/`. Funding and launch are real devnet transactions; the remaining balance stays in the test creator wallet. No mainnet funding, program upgrade, platform fee edit, migration or full lifecycle test is performed. A passed rerun returns the saved report. An unfinished run blocks automatic resubmission; inspect saved signatures first. This proves execution behavior of the deployed devnet buy code in simulation, not a live expiry transaction or the mainnet binary.
