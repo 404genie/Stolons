@@ -14,12 +14,12 @@ The `main` branch consolidates the latest protocol, SDK, frontend, fee collector
 
 These are intended or derived addresses. They do not establish deployed/initialized accounts. No mainnet transactions have been sent in the supplied preparation reports.
 
-The revised program was built from `3196672110fd78b9fc63ff3e68ee373ea80c9c34` using `scripts/production/build.sh`. That script archives committed source into an isolated directory and changes the Rust/Anchor identity in that copy to the mainnet program address. The repository's development identity and generated IDL are not themselves the mainnet artifact.
+The revised program was built from `b243e9cb6c02cb71daa0fa29478105a4a8fae46a` using `scripts/production/build.sh`. That script archives committed source into an isolated directory and changes the Rust/Anchor identity in that copy to the mainnet program address. The repository's development identity and generated IDL are not themselves the mainnet artifact.
 
 | Artifact | SHA-256 |
 |---|---|
-| Program, 783,368 bytes | `1699960cc365f66d5576f452510fc965ee4a12a19f3ba33979f4dfd9dacd564c` |
-| Mainnet IDL | `a9af3ba0893db692970680c3d7bdee61f93c80ce598e4efeab89fff8ff34d76a` |
+| Program, 796,968 bytes | `342d6c2a79cad8f9b176f7e2f8813490c9383b22066b646e190e4976b5cbe6ca` |
+| Mainnet IDL | `b5c79d5cda442445b4189dfb2d635e71b8eb195a2ed17a16704f220193c49ded` |
 
 The compiled artifacts are retained in the owner's `target/mainnet/`, not in the source ZIP. Preserve the generated `Cargo.lock` in the tested isolated build directory for dependency provenance; the Rust lockfile is not currently committed, so source alone does not pin every transitive Rust dependency. JavaScript dependencies are pinned by `pnpm-lock.yaml`.
 
@@ -31,7 +31,7 @@ Curve platform and creator fees are each 0.10%. Reviewed Raydium curve protocol 
 
 ## Validation and remaining work
 
-The owner supplied successful SBF/IDL compilation, no reported stack-frame overflow, 67 passing client tests, and passing live venue inspection. Earlier devnet family and fee reports are retained in `docs/validation/`. These checks are not an independent security audit or evidence of a live mainnet deployment.
+The owner supplied successful SBF/IDL compilation, no reported stack-frame overflow, 70 passing client tests, and passing live venue inspection. Earlier devnet family and fee reports are retained in `docs/validation/`. These checks are not an independent security audit or evidence of a live mainnet deployment.
 
 Mainnet authority and keeper balances were zero at inspection. ProgramData rent was 3.98038828 SOL, excluding executable-account rent, temporary deploy buffer funding, transaction fees and initialization costs. Program deployment, platform/protocol initialization, lookup-table creation, funded mainnet workers, production RPC/storage configuration, and live production verification remain pending. The frontend's mainnet transactions remain disabled by default.
 
@@ -39,4 +39,4 @@ Review the outstanding adversarial and integration gates in [MAINNET.md](MAINNET
 
 ## Follow-up audit findings
 
-The 85 SOL target is now enforced on-chain and in clients. Conditional status-1 expiry protection is added, but the conflicting Raydium timestamp semantics remain a release blocker. The owner selected quorum, proposer bond and anti-sniping protections; they are implemented in version 3. These Rust/account-layout changes supersede the artifact hashes above for deployment. Fresh SBF/IDL compilation and runtime verification are pending. Review the new `settle_proposal_bond` instruction and appended Epoch/Candidate fields. No deployment or account migration is included.
+The 85 SOL target is now enforced on-chain and in clients. Conditional status-1 expiry protection is added, but the conflicting Raydium timestamp semantics remain a release blocker. The owner selected quorum, proposer bond and anti-sniping protections; they are implemented in version 3. The owner-supplied follow-up build passed 18 Rust tests, 70 client tests and SBF/IDL compilation with 22 instructions; the table above now records that revised artifact. Focused runtime verification and timestamp verification remain pending. Review the new `settle_proposal_bond` instruction and appended Epoch/Candidate fields. No deployment or account migration is included.

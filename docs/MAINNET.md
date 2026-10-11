@@ -141,3 +141,15 @@ New rounds snapshot a winning-support quorum of ceil(parent supply / 1000), corr
 `enable_fee_sharing` activates version 3 on a fresh configuration. Epoch and Candidate layouts have appended fields; do not upgrade an existing devnet instance with live accounts without an explicit account migration. Existing devnet workers remain pinned and are not deployed from these changes. SDK decoders retain read compatibility with legacy account layouts, but that is not an on-chain migration.
 
 All earlier artifact hashes are superseded for deployment by these Rust changes. A fresh SBF/IDL build, focused runtime review of the new governance instructions and timestamp verification remain pending. Hosting deployment holds remain in place.
+
+## Audited build evidence and timestamp trace
+
+The owner supplied a successful follow-up build from `b243e9cb6c02cb71daa0fa29478105a4a8fae46a`: 18 Rust tests, 70 client tests, 22 IDL instruction builders and no reported SBF stack overflow. The 796,968-byte program hash is `342d6c2a79cad8f9b176f7e2f8813490c9383b22066b646e190e4976b5cbe6ca`; IDL hash is `b5c79d5cda442445b4189dfb2d635e71b8eb195a2ed17a16704f220193c49ded`. See [validation/mainnet-audit-build-2026-10-11.json](validation/mainnet-audit-build-2026-10-11.json). This supersedes the earlier artifact records. No transactions were sent. Runtime verification and finding 2 remain pending.
+
+A read-only history trace uses an existing graduated devnet token:
+
+```bash
+node scripts/devnet/trace-graduation-clock.mjs GKQWxEXuhPCKH4awCBJ4gb2QSiS2xEUcDxyFAwVTfrg6
+```
+
+It compares the final stored timestamp against the final curve buy and migration transaction. It classifies instructions only inside the canonical LaunchLab invocation and reports missing or same-second evidence as inconclusive. It sends no transaction and does not launch a token. The final account state cannot prove when the status-1 timestamp was first set or whether migration overwrote it, so this trace alone cannot close finding 2. A source verification or historical/live status-1 account snapshot is still required. Optional `TRACE_RPC_URL` may be configured privately for better history availability.

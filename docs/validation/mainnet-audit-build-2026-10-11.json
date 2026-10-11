@@ -1,0 +1,18 @@
+{
+  "evidenceSource": "Owner-supplied Codespaces build and offline release review",
+  "sourceCommit": "b243e9cb6c02cb71daa0fa29478105a4a8fae46a",
+  "programId": "8uXCB9g8ctvVddm9W992KF862PX1gT5kijEQmbdbjQ8B",
+  "artifactBytes": 796968,
+  "sha256": {
+    "program": "342d6c2a79cad8f9b176f7e2f8813490c9383b22066b646e190e4976b5cbe6ca",
+    "idl": "b5c79d5cda442445b4189dfb2d635e71b8eb195a2ed17a16704f220193c49ded"
+  },
+  "rustTestsPassed": 18,
+  "clientTestsPassed": 70,
+  "idlInstructionBuilders": 22,
+  "stackOverflowReported": false,
+  "transactionsSent": 0,
+  "timestampFindingResolved": false,
+  "deploymentVerified": false,
+  "publicLaunchApproved": false
+}
