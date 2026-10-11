@@ -6,7 +6,7 @@ Stolons lets you launch Solana tokens that can form a family of descendant token
 
 Connect your Solana wallet, choose **Create token**, and enter the name, ticker, description, image and optional social links. Preview the launch, review the estimated cost, then approve it in your wallet. Keep enough SOL for transaction fees and account rent.
 
-Each token starts with one billion tokens: 800 million for curve trading, 50 million for migrated liquidity, and 150 million in the reproduction reserve. Mint and freeze authorities are revoked. The displayed graduation target comes from the site's configured launch profile.
+Each token starts with one billion tokens: 700 million for curve trading, 150 million for migrated liquidity, and 150 million in the reproduction reserve. Mint and freeze authorities are revoked. The displayed graduation target comes from the site's configured launch profile.
 
 ## Trade and graduate
 

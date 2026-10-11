@@ -865,11 +865,11 @@ textarea {
   margin:20px 0
 }
 .allocation-bar i:nth-child(1) {
-  width:80%;
+  width:70%;
   background:var(--moss)
 }
 .allocation-bar i:nth-child(2) {
-  width:5%;
+  width:15%;
   background:#709342
 }
 .allocation-bar i:nth-child(3) {

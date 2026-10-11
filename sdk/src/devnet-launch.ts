@@ -6,7 +6,7 @@ import { sendDevnetTrade,TradeSubmittedError } from "./devnet-trade.js";
 import { buildInstruction } from "./builders.js";
 import { appendAfterInitializeV2 } from "./raydium.js";
 import { deriveFeeAuthorityPda, deriveConfigPda, deriveFamilyPda, deriveLineagePda, deriveReproductionAuthorityPda, deriveVaultAuthorityPda, deriveReproductionVaultPda, deriveCandidatePda } from "./pda.js";
-import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, INSTRUCTIONS_SYSVAR_ID } from "./constants.js";
+import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, INSTRUCTIONS_SYSVAR_ID, GENESIS_SUPPLY, REPRODUCTION_RESERVE, CURVE_ALLOCATION } from "./constants.js";
 import { decodeLaunchConfig, validateLaunchDetails } from "./launch-validation.js";
 
 export interface RootLaunchInput {
@@ -44,7 +44,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   const launch = LaunchpadConfig.decode(launchAccount.data);
   const BN = launch.tradeFeeRate.constructor as { new(value: string): typeof launch.tradeFeeRate };
   const bn = (value: bigint) => new BN(value.toString());
-  const supply = bn(1_000_000_000_000_000n), locked = bn(150_000_000_000_000n), sell = bn(800_000_000_000_000n), raising = bn(target);
+  const supply = bn(GENESIS_SUPPLY), locked = bn(REPRODUCTION_RESERVE), sell = bn(CURVE_ALLOCATION), raising = bn(target);
   Curve.checkParam({ supply, totalFundRaising: raising, totalSell: sell, totalLockedAmount: locked, decimals: 6, config: launch, migrateType: "cpmm" });
   const init = initializeV2(c.launchpad, creator, c.version>=2?deriveFeeAuthorityPda(programId,mint):creator, c.launchConfig, c.platform, getPdaLaunchpadAuth(c.launchpad).publicKey, pool, mint, c.quote,
     getPdaLaunchpadVaultId(c.launchpad, pool, mint).publicKey, getPdaLaunchpadVaultId(c.launchpad, pool, c.quote).publicKey,

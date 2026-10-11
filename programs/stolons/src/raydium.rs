@@ -266,3 +266,22 @@ mod fee_migration_tests {
         assert!(verify_fee_migration(&data, mint, Pubkey::new_unique()).is_ok());
     }
 }
+
+/// New registrations must use the reviewed curve allocation. Existing settlement remains compatible.
+pub fn validate_new_curve_allocation(total_sell: u64) -> Result<()> {
+    require!(total_sell == CURVE_ALLOCATION, StolonsError::InvalidAllocation);
+    Ok(())
+}
+
+#[cfg(test)]
+mod allocation_tests {
+    use super::*;
+    #[test]
+    fn new_launch_allocation_is_exact_and_conserves_supply() {
+        assert_eq!(CURVE_ALLOCATION + MIGRATION_ALLOCATION + REPRODUCTION_RESERVE, GENESIS_SUPPLY);
+        assert!(validate_new_curve_allocation(CURVE_ALLOCATION).is_ok());
+        for amount in [0, 699_999_999_999_999, 800_000_000_000_000, MARKET_ALLOCATION] {
+            assert!(validate_new_curve_allocation(amount).is_err());
+        }
+    }
+}

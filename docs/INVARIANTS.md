@@ -3,7 +3,7 @@
 ## Supply and reserve
 
 1. Every admitted mint is a standard SPL Token mint with six decimals, supply `1_000_000_000_000_000` atoms, and no mint/freeze authority.
-2. LaunchLab PoolState must report supply 1B, exactly 150M locked, CPMM migration type, Stolons global/platform config, and no vesting cliff or unlock period. The no-cliff/no-unlock requirement lets the program claim exactly the full reserve as soon as the pool is trading.
+2. New root and child registrations must report supply 1B, exactly 700M sold on the curve and 150M locked, leaving 150M for migration, plus CPMM migration type, Stolons global/platform config, and no vesting cliff or unlock period. Settlement of earlier registered launches retains its previous market-allocation checks. The no-cliff/no-unlock requirement lets the program claim exactly the full reserve as soon as the pool is trading.
 3. The vesting record must be the canonical `[pool_vesting, pool, reproduction_authority]` PDA with `claimed_amount = 0` and `token_share_amount = 150M`.
 4. No instruction can sign a general transfer out of a reproduction vault. A PDA can only burn parent tokens through `finalize_child`.
 5. Donations to a reproduction vault are accepted. Claim verification checks that exactly 150M new atoms arrived, instead of requiring the post-claim balance to equal 150M.

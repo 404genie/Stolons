@@ -18,7 +18,7 @@ Prepared 2026-10-11. These settings are candidates for initialization, not evide
 | Proposal, voting, selected-child launch | 24 hours each | Recommendation |
 | Selected-child migration deadline | 7 days | Recommendation |
 | Supply | 1B tokens, six decimals | Existing protocol |
-| Curve sale / migration liquidity / reproduction reserve | 800M / 50M / 150M | 85% market / 15% reserve |
+| Curve sale / migration liquidity / reproduction reserve | 700M / 150M / 150M | 85% market / 15% reserve |
 | Successful child settlement | Burn 10M parent reserve tokens | Existing protocol |
 | Migration LP | 100% burned | Existing on-chain requirement |
 
@@ -40,7 +40,7 @@ Code and SDK fixtures are not proof of deployed behavior. Rust/SBF compilation, 
 
 `production/manifest.example.json` contains the candidate numeric settings and the API's index-zero CPMM address. Deployment program, authorities, treasury, keeper, platform and lookup table are deliberately unset. Do not generate or publish signing keys in this file. Use a distinct mainnet program identity and a separate funded keeper payer.
 
-Prepare frontend settings only after those identities are chosen. `prepare-environment.mjs` keeps transactions disabled. Install a dedicated HTTPS browser RPC scoped by origin, a server RPC, public durable Blob storage, and the keeper secret as separate deployment settings. Run the read-only mainnet preflight; it verifies fee rates and the full 80/5/15 allocation with the live curve limits. Its report requires config version 2 and reports that shared-fee source exists but requires live verification; public launch remains unapproved.
+Prepare frontend settings only after those identities are chosen. `prepare-environment.mjs` keeps transactions disabled. Install a dedicated HTTPS browser RPC scoped by origin, a server RPC, public durable Blob storage, and the keeper secret as separate deployment settings. Run the read-only mainnet preflight; it verifies fee rates and the full 70/15/15 allocation with the live curve limits. Its report requires config version 2 and reports that shared-fee source exists but requires live verification; public launch remains unapproved.
 
 ## Sources checked
 

@@ -115,3 +115,9 @@ This read-only tool accepts the incomplete local manifest. It checks mainnet gen
 Before any further Railway or Vercel deployment, consolidate the completed repository branches into `main`, verify the resulting source tree and provide that single branch ZIP for the owner's audit. Keep private keys and credentials excluded.
 
 Mainnet RPC verification was corrected after the first live venue inspection: the canonical full genesis hash is `5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d`, as documented at https://solana.com/docs/payments/agentic-payments/x402. SDK, preflight, venue inspection and graduation keeper now share the SDK check. Regression fixtures reject both the former incorrect suffix and the truncated CAIP-2 identifier. Rebuild the SDK after pulling this correction before rerunning inspection. This JavaScript/TypeScript correction does not change Rust program source or the previously recorded program artifact.
+
+## Approved allocation correction
+
+Live mainnet inspection reported `minMigrateRateA=150000`, a 15% migration minimum, and a 24 SOL minimum fundraising target. The owner approved 70% curve / 15% migration / 15% reproduction reserve. The 85 SOL target remains unchanged. New root and child registrations now enforce exactly 700M curve tokens; clients encode that allocation and preflight validates it. Previously registered tokens retain settlement compatibility. The 150M reserve, 10M parent burn and 15-child limit are unchanged.
+
+The earlier `2780cc2` artifact is historical build evidence and is superseded for deployment by this Rust change. Run a fresh isolated mainnet build and record its new hashes. No repeat of the full devnet lifecycle is required for this allocation update; focused local encoding/constraint checks and the new Rust registration test cover the change. No program or hosting deployment has been performed for this change.

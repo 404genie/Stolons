@@ -32,7 +32,7 @@ must(!loaded[2],'Root mint already exists without registration. Do not reuse it.
 const launch=LaunchpadConfig.decode(loaded[1].data);
 const BN=launch.tradeFeeRate.constructor;
 const bn=(value)=>new BN(value.toString());
-const supply=bn(1_000_000_000_000_000n),locked=bn(150_000_000_000_000n),sell=bn(800_000_000_000_000n),raising=bn(1_000_000_000n);
+const supply=bn(1_000_000_000_000_000n),locked=bn(150_000_000_000_000n),sell=bn(700_000_000_000_000n),raising=bn(1_000_000_000n);
 Curve.checkParam({supply,totalFundRaising:raising,totalSell:sell,totalLockedAmount:locked,decimals:6,config:launch,migrateType:'cpmm'});
 const init=initializeV2(launchpad,wallet,wallet,launchConfig,platform,getPdaLaunchpadAuth(launchpad).publicKey,pool,mint,quote,
  getPdaLaunchpadVaultId(launchpad,pool,mint).publicKey,getPdaLaunchpadVaultId(launchpad,pool,quote).publicKey,getPdaMetadataKey(mint).publicKey,TOKEN_PROGRAM_ID,
@@ -49,7 +49,7 @@ const latest=await connection.getLatestBlockhash('confirmed');
 const transaction=new VersionedTransaction(new TransactionMessage({payerKey:wallet,recentBlockhash:latest.blockhash,instructions}).compileToLegacyMessage());
 const bytes=transaction.serialize().length;
 must(bytes<=1232,`Atomic launch needs ${bytes} bytes; packet limit is 1232. No transaction sent.`);
-console.log(JSON.stringify({cluster:'devnet',mint:mintText,pool:pool.toBase58(),vesting:vesting.toBase58(),transactionBytes:bytes,supplyTokens:1000000000,reserveTokens:150000000,curveSaleTokens:800000000,migrationTokens:50000000,graduationTargetSOL:1},null,2));
+console.log(JSON.stringify({cluster:'devnet',mint:mintText,pool:pool.toBase58(),vesting:vesting.toBase58(),transactionBytes:bytes,supplyTokens:1000000000,reserveTokens:150000000,curveSaleTokens:700000000,migrationTokens:150000000,graduationTargetSOL:1},null,2));
 const simulated=await connection.simulateTransaction(transaction,{sigVerify:false,commitment:'confirmed'});
 console.log((simulated.value.logs??[]).join('\n'));
 must(!simulated.value.err,`Root simulation failed: ${JSON.stringify(simulated.value.err)}`);

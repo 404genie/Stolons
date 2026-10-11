@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
-import {deriveConfigPda,deriveReproductionAuthorityPda,decodePlatformConfig} from '../../sdk/dist/index.js';
+import {deriveConfigPda,deriveReproductionAuthorityPda,decodePlatformConfig,GENESIS_SUPPLY,CURVE_ALLOCATION,REPRODUCTION_RESERVE} from '../../sdk/dist/index.js';
 const {ALL_PROGRAM_ID,PlatformConfig,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
 import {MAINNET_GENESIS_HASH as MAINNET_GENESIS} from '../../sdk/dist/network.js';
 const LOADER=new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
@@ -46,7 +46,7 @@ export async function inspectMainnet(connection,manifest){
  if(launch.mintB.toBase58()!=='So11111111111111111111111111111111111111112'||launch.curveType!==0||cpmm.disableCreatePool)fail('Mainnet curve/CPMM configuration is unsupported or disabled.');
  if(Number(launch.tradeFeeRate.toString())!==m.launchProtocolFeeRate||Number(cpmm.tradeFeeRate.toString())!==m.cpmmTradeFeeRate||Number(cpmm.creatorFeeRate.toString())!==m.cpmmCreatorFeeRate)fail('Raydium fee rates differ from reviewed economics.');
  const BN=launch.tradeFeeRate.constructor,bn=value=>new BN(String(value));
- try{Curve.checkParam({supply:bn(1000000000000000n),totalSell:bn(800000000000000n),totalLockedAmount:bn(150000000000000n),totalFundRaising:bn(m.graduationTargetLamports),decimals:6,config:launch,migrateType:'cpmm'});}catch{fail('Reviewed graduation target or 80/5/15 allocation violates live Raydium curve constraints.');}
+ try{Curve.checkParam({supply:bn(GENESIS_SUPPLY),totalSell:bn(CURVE_ALLOCATION),totalLockedAmount:bn(REPRODUCTION_RESERVE),totalFundRaising:bn(m.graduationTargetLamports),decimals:6,config:launch,migrateType:'cpmm'});}catch{fail('Reviewed graduation target or 70/15/15 allocation violates live Raydium curve constraints.');}
  const p=decodePlatformConfig(a[6].data),full=PlatformConfig.decode(a[6].data);
  if(!new PublicKey(p.feeWallet).equals(new PublicKey(m.treasury))||!new PublicKey(p.cpmmConfig).equals(keys[7])||!new PublicKey(p.vestingWallet).equals(deriveReproductionAuthorityPda(program))||p.vestingScale!==1000000n||p.migrationPlatformScale!==0n||p.migrationCreatorScale!==0n||p.migrationBurnScale!==1000000n)fail('Platform treasury, reproduction vesting or LP burn allocation differs from protocol.');
  if(Number(full.feeRate.toString())!==m.platformFeeRate||Number(full.creatorFeeRate.toString())!==m.creatorFeeRate)fail('On-chain platform/creator fees differ from reviewed economics.');

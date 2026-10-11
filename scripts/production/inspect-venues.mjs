@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
+import {GENESIS_SUPPLY,CURVE_ALLOCATION,REPRODUCTION_RESERVE} from '../../sdk/dist/constants.js';
 import {assertCluster} from '../../sdk/dist/network.js';
 import {readRetryFetch} from '../../services/keeper/rpc.mjs';
 const {ALL_PROGRAM_ID,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
@@ -24,7 +25,7 @@ async function main(){
  const rates={launchProtocolFeeRate:Number(launch.tradeFeeRate.toString()),cpmmTradeFeeRate:Number(cpmm.tradeFeeRate.toString()),cpmmCreatorFeeRate:Number(cpmm.creatorFeeRate.toString())};
  for(const [field,value]of Object.entries(rates))if(m[field]!==value)throw Error(`Live ${field} is ${value} millionths; manifest expects ${m[field]}. Review economics before changing settings.`);
  const BN=launch.tradeFeeRate.constructor,bn=value=>new BN(String(value));
- const supply=bn(1000000000000000n),totalSell=bn(800000000000000n),totalLockedAmount=bn(150000000000000n);
+ const supply=bn(GENESIS_SUPPLY),totalSell=bn(CURVE_ALLOCATION),totalLockedAmount=bn(REPRODUCTION_RESERVE);
  try{Curve.checkParam({supply,totalSell,totalLockedAmount,totalFundRaising:bn(m.graduationTargetLamports),decimals:6,config:launch,migrateType:'cpmm'});}catch(error){
   const minimumMigrationAtoms=supply.mul(launch.minMigrateRateA).div(bn(1000000));
   console.log(JSON.stringify({cluster:m.cluster,launchlabConfig:m.launchlabConfig,venueChecksPassed:false,blocker:error.message,liveConstraints:{minMigrateRateMillionths:launch.minMigrateRateA.toString(),minSellRateMillionths:launch.minSellRateA.toString(),maxLockRateMillionths:launch.maxLockRate.toString(),minSupplyTokens:launch.minSupplyA.toString(),minFundRaisingLamports:launch.minFundRaisingB.toString()},proposedAllocationAtoms:{supply:supply.toString(),curve:totalSell.toString(),reproductionReserve:totalLockedAmount.toString(),migration:supply.sub(totalSell).sub(totalLockedAmount).toString()},minimumMigrationAtoms:minimumMigrationAtoms.toString(),maximumCurveAtomsKeepingReserve:supply.sub(totalLockedAmount).sub(minimumMigrationAtoms).toString(),rates,transactionsSent:0,publicLaunchApproved:false},null,2));

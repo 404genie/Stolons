@@ -20,7 +20,7 @@ use crate::{
     math::{root_mass_transfer, validate_family_move},
     raydium::{
         anchor_ix_discriminator, read_launch_pool, validate_platform_config,
-        validate_stolons_launch, validate_vesting_record, verify_cpmm_pool, verify_fee_migration,
+        validate_stolons_launch, validate_new_curve_allocation, validate_vesting_record, verify_cpmm_pool, verify_fee_migration,
         verify_initialize_v2_before_current,
     },
     state::*,
@@ -186,6 +186,7 @@ pub fn register_root_launch(ctx: Context<RegisterRootLaunch>) -> Result<()> {
 
     let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), config)?;
     validate_stolons_launch(ctx.accounts.pool_state.key(), &pool, config, ctx.accounts.mint.key(), 0)?;
+    validate_new_curve_allocation(pool.total_sell)?;
     require!(pool.quote_decimals == ctx.accounts.quote_mint.decimals, StolonsError::InvalidLaunchPool);
     require_keys_eq!(pool.creator, launch_fee_creator(config, ctx.accounts.mint.key(), ctx.accounts.creator.key()), StolonsError::InvalidLaunchPool);
     validate_platform_config(
@@ -885,6 +886,7 @@ pub fn register_candidate_launch(ctx: Context<RegisterCandidateLaunch>) -> Resul
 
     let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config)?;
     validate_stolons_launch(ctx.accounts.pool_state.key(), &pool, &ctx.accounts.config, ctx.accounts.child_mint.key(), 0)?;
+    validate_new_curve_allocation(pool.total_sell)?;
     require!(pool.quote_decimals == ctx.accounts.quote_mint.decimals, StolonsError::InvalidLaunchPool);
     require_keys_eq!(pool.creator, launch_fee_creator(&ctx.accounts.config, ctx.accounts.child_mint.key(), ctx.accounts.launcher.key()), StolonsError::InvalidLaunchPool);
     validate_platform_config(

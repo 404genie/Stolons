@@ -2,6 +2,8 @@ import { PublicKey } from "@solana/web3.js";
 
 export const TOKEN_DECIMALS = 6;
 export const GENESIS_SUPPLY = 1_000_000_000_000_000n;
+export const CURVE_ALLOCATION = 700_000_000_000_000n;
+export const MIGRATION_ALLOCATION = 150_000_000_000_000n;
 export const MARKET_ALLOCATION = 850_000_000_000_000n;
 export const REPRODUCTION_RESERVE = 150_000_000_000_000n;
 export const CHILD_BURN_ATOMS = 10_000_000_000_000n;

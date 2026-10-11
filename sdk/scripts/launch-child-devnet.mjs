@@ -40,7 +40,7 @@ const proposal=new PublicKey(candidateData.subarray(104,136));
 const launch=LaunchpadConfig.decode(loaded[1].data);
 const BN=launch.tradeFeeRate.constructor;
 const bn=(value)=>new BN(value.toString());
-const supply=bn(1_000_000_000_000_000n),locked=bn(150_000_000_000_000n),sell=bn(800_000_000_000_000n),raising=bn(1_000_000_000n);
+const supply=bn(1_000_000_000_000_000n),locked=bn(150_000_000_000_000n),sell=bn(700_000_000_000_000n),raising=bn(1_000_000_000n);
 Curve.checkParam({supply,totalFundRaising:raising,totalSell:sell,totalLockedAmount:locked,decimals:6,config:launch,migrateType:'cpmm'});
 const init=initializeV2(launchpad,wallet,wallet,launchConfig,platform,getPdaLaunchpadAuth(launchpad).publicKey,pool,mint,quote,
  getPdaLaunchpadVaultId(launchpad,pool,mint).publicKey,getPdaLaunchpadVaultId(launchpad,pool,quote).publicKey,getPdaMetadataKey(mint).publicKey,TOKEN_PROGRAM_ID,
