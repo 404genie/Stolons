@@ -121,3 +121,13 @@ Mainnet RPC verification was corrected after the first live venue inspection: th
 Live mainnet inspection reported `minMigrateRateA=150000`, a 15% migration minimum, and a 24 SOL minimum fundraising target. The owner approved 70% curve / 15% migration / 15% reproduction reserve. The 85 SOL target remains unchanged. New root and child registrations now enforce exactly 700M curve tokens; clients encode that allocation and preflight validates it. Previously registered tokens retain settlement compatibility. The 150M reserve, 10M parent burn and 15-child limit are unchanged.
 
 The earlier `2780cc2` artifact is historical build evidence and is superseded for deployment by this Rust change. Run a fresh isolated mainnet build and record its new hashes. No repeat of the full devnet lifecycle is required for this allocation update; focused local encoding/constraint checks and the new Rust registration test cover the change. No program or hosting deployment has been performed for this change.
+
+The owner supplied a successful revised Codespaces build with 67 client tests and a passing live venue inspection. The new program artifact is 783,368 bytes with SHA-256 `1699960cc365f66d5576f452510fc965ee4a12a19f3ba33979f4dfd9dacd564c`. The live report records zero authority/keeper balances and 3.98038828 SOL of ProgramData rent only; executable-account rent, temporary buffer funding, transaction fees and initialization costs are additional. This evidence is recorded in [validation/mainnet-allocation-2026-10-11.json](validation/mainnet-allocation-2026-10-11.json).
+
+Generate an offline release review containing the source commit, both artifact hashes, and authority-derived platform/config/reproduction addresses:
+
+```bash
+node scripts/production/prepare-release.mjs
+```
+
+It writes `target/mainnet/release-review.json`, reads no private keys, sends no transactions and leaves the local manifest intact. Derived addresses are planned identities, not proof of initialized accounts. The lookup table and complete initialized configuration remain pending.

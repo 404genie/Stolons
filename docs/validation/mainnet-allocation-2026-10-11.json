@@ -1,0 +1,18 @@
+{
+  "evidenceSource": "Owner-supplied Codespaces build and live read-only venue report",
+  "programId": "8uXCB9g8ctvVddm9W992KF862PX1gT5kijEQmbdbjQ8B",
+  "artifactSha256": "1699960cc365f66d5576f452510fc965ee4a12a19f3ba33979f4dfd9dacd564c",
+  "artifactBytes": 783368,
+  "allocationPercent": {"curve": 70, "migration": 15, "reproductionReserve": 15},
+  "clientTestsPassed": 67,
+  "venueChecksPassed": true,
+  "graduationTargetLamports": "85000000000",
+  "ratesMillionths": {"launchProtocolFeeRate": 2500, "cpmmTradeFeeRate": 2500, "cpmmCreatorFeeRate": 500},
+  "balancesLamports": {"upgradeAuthority": 0, "keeperWallet": 0},
+  "minimumProgramDataRentLamports": 3980388280,
+  "rentExcludes": ["executable account", "transaction fees", "temporary deploy buffer", "initialization"],
+  "platformConfig": null,
+  "lookupTable": null,
+  "transactionsSent": 0,
+  "publicLaunchApproved": false
+}
