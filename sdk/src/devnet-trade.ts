@@ -127,6 +127,7 @@ export type PreparedTrade = Awaited<ReturnType<typeof buildDevnetTrade>>;
 export async function simulateDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction }) {
   const result = await connection.simulateTransaction(prepared.transaction, { sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' });
   if (result.value.err) throw new Error(`Trade simulation failed: ${JSON.stringify(result.value.err)}. Check your balance or preview a smaller trade.`);
+  return result.context?.slot;
 }
 export class TradeSubmittedError extends Error {
   constructor(readonly signature: string, message: string) { super(message); this.name = 'TradeSubmittedError'; }
@@ -141,7 +142,7 @@ function signatureBase58(bytes: Uint8Array): string {
 export async function sendDevnetTrade(connection: Connection, prepared: { transaction: VersionedTransaction; latest: { blockhash: string; lastValidBlockHeight: number }; quote: { quotedAt: number } }, signTransaction: (tx: VersionedTransaction) => Promise<VersionedTransaction>) {
   if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error('Trading is enabled on Solana devnet only.');
   if (Date.now() - prepared.quote.quotedAt > 60_000) throw new Error('Quote expired. Preview the trade again.');
-  await simulateDevnetTrade(connection, prepared);
+  const simulationSlot = await simulateDevnetTrade(connection, prepared);
   // Snapshot before the wallet can mutate the transaction in place.
   const tables = await Promise.all(prepared.transaction.message.addressTableLookups.map(async entry => { const value = (await connection.getAddressLookupTable(entry.accountKey)).value; if (!value) throw new Error('Transaction lookup table is unavailable.'); return value; }));
   const template = prepared.transaction.serialize();
@@ -167,7 +168,7 @@ export async function sendDevnetTrade(connection: Connection, prepared: { transa
       if (!validLimit && !validPrice) throw new Error('Wallet requested an unsupported compute budget or excessive priority fee. Reduce the wallet fee and preview again.');
     }
     // Verify the exact wallet-signed transaction, including its priority fee.
-    const signedSimulation = await connection.simulateTransaction(signed, { sigVerify: true, commitment: 'confirmed' });
+    const signedSimulation = await connection.simulateTransaction(signed, { sigVerify: true, commitment: 'confirmed', ...(simulationSlot !== undefined ? { minContextSlot: simulationSlot } : {}) });
     if (signedSimulation.value.err === 'BlockhashNotFound') {
       // Nothing has been broadcast. Rebuild and request signatures again once.
       if (attempt === 0) continue;
@@ -176,7 +177,7 @@ export async function sendDevnetTrade(connection: Connection, prepared: { transa
     if (signedSimulation.value.err) throw new Error(`Signed trade simulation failed: ${JSON.stringify(signedSimulation.value.err)}. Preview again.`);
     const signature = signatureBase58(signed.signatures[0]!);
     try {
-      await connection.sendRawTransaction(signed.serialize(), { preflightCommitment: 'confirmed' });
+      await connection.sendRawTransaction(signed.serialize(), { preflightCommitment: 'confirmed', ...(simulationSlot !== undefined ? { minContextSlot: simulationSlot } : {}) });
       const result = await connection.confirmTransaction({ signature, ...latest }, 'confirmed');
       if (result.value.err) throw new Error(`On-chain trade failed: ${JSON.stringify(result.value.err)}`);
       return signature;

@@ -146,3 +146,14 @@ test('repeated blockhash failures stop before broadcast', async () => {
   await assert.rejects(sendDevnetTrade(f.connection,f.prepared,f.sign),/Nothing was submitted/);
   assert.deepEqual(f.calls,{signed:2,sent:0});
 });
+
+test('signed simulation and submission cannot use an RPC bank older than the reviewed state',async()=>{
+ const f=sendFixture();
+ f.connection.simulateTransaction=async(tx,options)=>{
+  if(options.sigVerify)assert.equal(options.minContextSlot,12345);
+  return {context:{slot:12345},value:{err:null}};
+ };
+ f.connection.sendRawTransaction=async(bytes,options)=>{assert.equal(options.minContextSlot,12345);f.calls.sent++;return 'unused';};
+ await sendDevnetTrade(f.connection,f.prepared,f.sign);
+ assert.equal(f.calls.sent,1);
+});
