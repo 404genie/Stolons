@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import dynamic from "next/dynamic";
+
+// Wallet discovery uses browser state that is unavailable during server rendering.
+const WalletMultiButton = dynamic(
+  () => import("@solana/wallet-adapter-react-ui").then((module) => module.WalletMultiButton),
+  { ssr: false },
+);
 
 export function Navigation() {
   return (
