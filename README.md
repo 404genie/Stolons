@@ -2,7 +2,7 @@
 
 Stolons is a Solana protocol for independently tradeable tokens with on-chain family lineage. Raydium LaunchLab creates and trades tokens; the Anchor program tracks family state, votes, reproduction reserves, and the fixed ancestry mutation.
 
-This checkout is a complete first code delivery, not a deployed or devnet-verified release. The Rust/SBF program has not been compiled in this workspace because the Rust, Anchor, and Solana toolchains are unavailable here. Do not use the placeholder program ID for deployment.
+The `devnet/codespaces` branch has a deployed Devnet program and a verified root-to-child lifecycle: launch, governance, CPMM migration, reserve claiming, parent burn, and descendant activation. This is a development deployment; remaining acceptance scenarios are tracked in `docs/DEVNET.md`. See `docs/DEVNET-RESULTS.md` for public addresses and validation results.
 
 ## Repository
 

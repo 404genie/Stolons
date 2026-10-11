@@ -1,10 +1,12 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
 import { Navigation } from "../components/nav";
 import { GENESIS_SUPPLY, MARKET_ALLOCATION, REPRODUCTION_RESERVE, CHILD_BURN_ATOMS, MAX_DIRECT_CHILDREN } from "@stolons/sdk";
+
+import { DEVNET_ROOT_MINT, DEVNET_CHILD_MINT } from "../lib/devnet";
 
 const tokenAmount = (amount: bigint) => (Number(amount) / 1_000_000).toLocaleString("en-US");
 
@@ -64,9 +66,10 @@ export default function HomePage() {
             </form>
             {error && <p className="error">{error}</p>}
           </div>
+          <div className="actions"><a className="button" href={`/token/${DEVNET_ROOT_MINT}`}>View Devnet root</a><a className="button" href={`/token/${DEVNET_CHILD_MINT}`}>View Devnet child</a></div>
           <div className="notice" style={{ marginTop: 14 }}>Ancestry changes only after Raydium CPMM migration is verified, the 150M reserve is claimed, and the parent burn succeeds. Raydium remains responsible for launch and trading.</div>
         </section>
-        <footer className="footer"><span>Stolons · devnet first</span><span>Protocol code is under review before live testing.</span></footer>
+        <footer className="footer"><span>Stolons · devnet first</span><span>Root and child lifecycle verified on Devnet.</span></footer>
       </div>
     </main>
   );

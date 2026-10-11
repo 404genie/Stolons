@@ -1,0 +1,3 @@
+export const STOLONS_PROGRAM_ID = process.env.NEXT_PUBLIC_STOLONS_PROGRAM_ID || "4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ";
+export const DEVNET_ROOT_MINT = "3jXAR6xsXFtvGnk7nXX5P98MgrEQuH8Jxn4rovcE15EW";
+export const DEVNET_CHILD_MINT = "6bQBYEUZd9M64ZFSRu93HgDzDpPfoZnuyVwHsvq77q54";

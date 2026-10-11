@@ -9,14 +9,19 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, deriveConfigPda, deriveEpochPda, deriveLineagePda, deriveReproductionVaultPda, deriveVaultAuthorityPda, deriveVoteAuthorityPda, deriveVoteEscrowPda, buildInstruction, StolonsClient, LineageStatus } from "@stolons/sdk";
 import { Navigation } from "../../../components/nav";
 
+import { STOLONS_PROGRAM_ID } from "../../../lib/devnet";
+
+const zero = PublicKey.default;
+
 export default function ReproductionPage() {
   const { mint: mintText } = useParams<{ mint: string }>();
   const { connection } = useConnection();
   const wallet = useWallet();
-  const programId = useMemo(() => new PublicKey(process.env.NEXT_PUBLIC_STOLONS_PROGRAM_ID || "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"), []);
+  const programId = useMemo(() => new PublicKey(STOLONS_PROGRAM_ID), []);
   const client = useMemo(() => new StolonsClient(connection, programId), [connection, programId]);
   const [lineage, setLineage] = useState<Awaited<ReturnType<StolonsClient["getLineage"]>>>(null);
   const [vaultAmount, setVaultAmount] = useState<bigint | null>(null);
+  const [settings, setSettings] = useState<{ proposalWindow: number; votingWindow: number; paused: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -25,11 +30,14 @@ export default function ReproductionPage() {
     async function load() {
       try {
         const mint = new PublicKey(mintText);
-        const [entry, vault] = await Promise.all([
+        const [entry, vault, config] = await Promise.all([
           client.getLineage(mint),
-          connection.getTokenAccountBalance(deriveReproductionVaultPda(programId, mint), "confirmed").catch(() => null)
+          connection.getTokenAccountBalance(deriveReproductionVaultPda(programId, mint), "confirmed").catch(() => null),
+          connection.getAccountInfo(deriveConfigPda(programId), "confirmed")
         ]);
         if (cancelled) return;
+        if (!config || !config.owner.equals(programId) || config.data.length < 307) throw new Error("Protocol configuration missing.");
+        setSettings({ proposalWindow: Number(config.data.readBigUInt64LE(264)), votingWindow: Number(config.data.readBigUInt64LE(272)), paused: config.data[304] !== 0 });
         setLineage(entry);
         setVaultAmount(vault ? BigInt(vault.value.amount) : 0n);
       } catch { if (!cancelled) setMessage("Could not load this lineage from devnet."); }
@@ -38,7 +46,7 @@ export default function ReproductionPage() {
     return () => { cancelled = true; };
   }, [client, connection, mintText, programId]);
 
-  const eligible = lineage && (lineage.status === LineageStatus.RootActive || lineage.status === LineageStatus.DescendantActive);
+  const eligible = lineage && settings && !settings.paused && lineage.activeEpoch.equals(zero) && lineage.activeCandidate.equals(zero) && lineage.directChildrenCount < 15 && (lineage.status === LineageStatus.RootActive || lineage.status === LineageStatus.DescendantActive);
 
   async function openRound() {
     const publicKey = wallet.publicKey;
@@ -47,7 +55,9 @@ export default function ReproductionPage() {
     setBusy(true); setMessage("");
     try {
       const mint = new PublicKey(mintText);
-      const epoch = deriveEpochPda(programId, mint, lineage.nextEpochId);
+      const current = await client.getLineage(mint);
+      if (!current || !current.activeEpoch.equals(zero) || !current.activeCandidate.equals(zero)) throw new Error("This token already has an active round or candidate.");
+      const epoch = deriveEpochPda(programId, mint, current.nextEpochId);
       const instruction = buildInstruction(programId, "open_epoch", {
         payer: publicKey,
         config: deriveConfigPda(programId),
@@ -60,9 +70,10 @@ export default function ReproductionPage() {
         vote_escrow: deriveVoteEscrowPda(programId, epoch),
         token_program: TOKEN_PROGRAM_ID,
         system_program: SYSTEM_PROGRAM_ID
-      }, lineage.nextEpochId);
+      }, current.nextEpochId);
       const signature = await client.send({ publicKey, signTransaction }, instruction);
       setMessage(`Round opened: ${signature}`);
+      setLineage(await client.getLineage(mint));
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Transaction failed.");
     } finally { setBusy(false); }
@@ -78,8 +89,8 @@ export default function ReproductionPage() {
       </div>
       <section className="section"><div className="card">
         <h2>Proposal and vote window</h2>
-        <p className="small">Opening an epoch locks the parent's reproduction state for one 24 hour proposal period and one 24 hour vote period. Each wallet can vote once and may withdraw its escrow after finalization.</p>
-        <div className="notice">This action only opens the on-chain epoch. The proposal submission and vote forms will be enabled after the generated IDL and devnet account layouts have passed the integration gate.</div>
+        <p className="small">{settings ? `Opening a round starts a ${settings.proposalWindow}-second proposal window followed by a ${settings.votingWindow}-second voting window.` : "Loading proposal and voting windows…"} Each wallet can vote once and may withdraw its escrow after finalization.</p>
+        <div className="notice">{settings?.paused ? "Protocol is paused. " : lineage && (!lineage.activeEpoch.equals(zero) || !lineage.activeCandidate.equals(zero)) ? "This token already has an active round or candidate. " : ""}This action only opens the on-chain epoch. Use the Devnet scripts for proposal submission, voting, and child launches while the web forms are being completed.</div>
         <div className="actions"><button className="button primary" onClick={openRound} disabled={busy || !eligible || !vaultAmount || vaultAmount < 10_000_000_000_000n}>{busy ? "Submitting…" : "Open epoch"}</button><Link className="button" href={`/token/${mintText}`}>Back to token</Link></div>
         {message && <p className="small" role="status">{message}</p>}
       </div></section>
