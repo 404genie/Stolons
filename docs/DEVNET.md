@@ -82,3 +82,13 @@ After submission, inspect the token and transaction links. If submission or conf
 - Donation to reproduction vault before/after claim; settlement must still work after the exact reserve delta is verified.
 
 Record signatures, account snapshots, IDL hash, binary hash, toolchain versions, and exact config addresses. Only after the entire sequence passes from a clean deploy should a separate mainnet threat review begin.
+
+### Browser bonding-curve trading
+
+Open a newly launched token's `/token/<mint>` page and connect Phantom on devnet. Choose Buy or Sell, enter an amount, and preview. Quotes include the Raydium protocol, Stolons platform, and creator fees. Network fees and temporary account rent require additional devnet SOL. The preview simulates before showing confirmation, and confirmation refreshes the price while retaining the minimum output you reviewed. Quotes expire after 60 seconds; changed inputs or wallets require a new preview.
+
+Try a small buy, check the transaction on Solana Explorer, then sell part of the received tokens. Amounts use integer token units (nine decimals for SOL, six for these tokens). Slippage accepts 0.01%–10%. Trades use a new temporary wrapped-SOL account and close it in the same transaction; existing wrapped-SOL accounts are not closed. An uncertain submission shows the signed transaction ID and blocks another trade until you acknowledge checking it.
+
+This update supports the Raydium bonding curve on devnet. A completed curve or a registered CPMM pool shows that graduated trading is pending rather than submitting a curve trade. Mainnet remains disabled.
+
+Validation: `pnpm sdk:build && pnpm test:client && pnpm web:build`. The trade regression fixtures are public devnet account snapshots, including a simulated post-buy pool; tests run without network access.

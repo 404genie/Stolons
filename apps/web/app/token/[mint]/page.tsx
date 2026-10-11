@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
 import { useConnection } from "@solana/wallet-adapter-react";
+import { TradePanel } from "../../../components/trade-panel";
 import { Navigation } from "../../../components/nav";
 import { StolonsClient, LineageStatus, deriveReproductionVaultPda } from "@stolons/sdk";
 import type { LineageAccount } from "@stolons/sdk";
@@ -63,6 +64,7 @@ export default function TokenPage() {
         {loading && <p className="small" role="status">Loading Devnet lineage…</p>}
         {!error && !loading && !lineage && <p className="small">No Stolons lineage record was found for this mint.</p>}
         {lineage && <>
+          <TradePanel mint={mintText} graduated={!lineage.cpmmPool.equals(zero)} />
           <section className="grid">
             <article className="card"><span className="label">Current supply</span><div className="metric">{supply === null ? "…" : (Number(supply) / 1_000_000).toLocaleString("en-US")}</div><p className="small">Tokens · six decimals</p></article>
             <article className="card"><span className="label">Generation</span><div className="metric">G{lineage.generation}</div><p className="small">Direct children {lineage.directChildrenCount} / 15</p></article>
