@@ -31,6 +31,13 @@ input:focus { border-color:#a7c77d; }
 .token-head { padding:54px 0 26px; }
 .token-head h1 { font-size:clamp(42px,7vw,72px); overflow-wrap:anywhere; }
 .label { display:block; color:var(--muted); font-size:11px; letter-spacing:.13em; text-transform:uppercase; margin-bottom:7px; }
+.launch-form { max-width:760px; margin-top:24px; }
+.launch-form fieldset { margin:0; padding:0; border:0; min-width:0; }
+.launch-form input { margin-bottom:20px; }
+.launch-details { display:grid; grid-template-columns:150px minmax(0,1fr); gap:14px; font-size:14px; }
+.launch-details dt { color:var(--muted); }
+.launch-details dd { margin:0; overflow-wrap:anywhere; }
+@media(max-width:600px) { .launch-details { grid-template-columns:1fr; gap:8px; } .launch-details dd { margin-bottom:12px; } }
 .value { overflow-wrap:anywhere; }
 .pill { display:inline-flex; border:1px solid #4d6242; color:var(--moss); border-radius:99px; padding:5px 10px; font-size:12px; }
 .form { display:grid; gap:14px; max-width:640px; }

@@ -35,7 +35,7 @@ export default function HomePage() {
           <h1>Memecoins that reproduce.</h1>
           <p>Each token trades on Raydium. When a selected child graduates, its parent permanently burns 10 million tokens and passes on a small share of its ancestral mass.</p>
           <div className="actions">
-            <a className="button primary" href="#launch">Explore a token</a>
+            <a className="button primary" href="/launch">Launch a token</a>
             <a className="button" href="#protocol">How Stolons works</a>
           </div>
           <form className="lookup" onSubmit={openToken}>
@@ -43,7 +43,7 @@ export default function HomePage() {
             <button className="button" type="submit">Open</button>
           </form>
           {error && <p className="error">{error}</p>}
-          <p className="small">The app defaults to Solana devnet. No token launch or trade is submitted from this page yet; launch construction uses the pinned Raydium SDK and atomic Stolons registration builder.</p>
+          <p className="small">Launch and explore on Solana devnet. Connect a wallet with test SOL to start your token family.</p>
         </section>
 
         <section className="section" id="protocol">

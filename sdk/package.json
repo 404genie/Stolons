@@ -7,7 +7,9 @@
     ".": "./dist/index.js",
     "./math": "./dist/math.js",
     "./builders": "./dist/builders.js",
-    "./raydium-layout": "./dist/raydium-layout.js"
+    "./raydium-layout": "./dist/raydium-layout.js",
+    "./devnet-launch": "./dist/devnet-launch.js",
+    "./launch-validation": "./dist/launch-validation.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

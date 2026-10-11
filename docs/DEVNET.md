@@ -34,6 +34,18 @@ After deployment, record the printed program ID and the contents of `target/devn
 
 ## Root token
 
+### Browser root launch
+
+Run `bash scripts/devnet/web.sh` after pulling updates; it rebuilds the SDK before starting the web app. Open `/launch` and connect a devnet-funded Phantom wallet. Any creator can use the deployed Stolons platform; a creator does not need the protocol authority wallet.
+
+Use **Use test metadata** for the public `root.json` fixture, or supply your own direct HTTPS JSON URL that allows browser access (CORS). JSON `name` and `symbol` must exactly match the form and include a supported `image` URL. The client checks UTF-8 field sizes and a 32 KB JSON limit.
+
+**Preview launch** builds and simulates the atomic Raydium InitializeV2 + Stolons root registration, showing the mint and estimated test-SOL cost. **Sign and launch** refreshes configuration/blockhash, checks metadata again, and simulates before requesting a wallet signature. Only the devnet genesis hash is supported; oversized transactions are rejected before signing. This browser flow does not submit a first buy or graduate the token.
+
+After submission, inspect the token and transaction links. If submission or confirmation is uncertain, inspect this mint before retrying. A confirmed launch starts in `RootPending`; graduation, reserve claim, and activation remain separate steps. Metadata is validated by the client and remains hosted off-chain; the on-chain program does not bind token JSON content.
+
+### Script root launch
+
 1. Generate a fresh mint keypair for the LaunchLab InitializeV2 builder. Let Raydium initialize the standard SPL mint; verify six decimals, exactly 1B supply, and revoked mint/freeze authorities after the atomic launch transaction. Do not pre-create the mint separately.
 2. Configure LaunchLab supply=1B, locked reserve=150M, zero cliff/unlock, CPMM migration, and the canonical Stolons platform/config.
 3. Compose `InitializeV2` and `register_root_launch` in one transaction. Confirm the on-chain pool records the creator, mint, quote mint, config, platform, supply, and reserve as expected.
