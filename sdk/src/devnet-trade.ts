@@ -104,10 +104,25 @@ export async function sendDevnetTrade(connection: Connection, prepared: Prepared
   if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error('Trading is enabled on Solana devnet only.');
   if (Date.now() - prepared.quote.quotedAt > 60_000) throw new Error('Quote expired. Preview the trade again.');
   await simulateDevnetTrade(connection, prepared);
-  const originalMessage = prepared.transaction.message.serialize();
+  // Snapshot before the wallet can mutate the transaction in place.
+  const original = TransactionMessage.decompile(VersionedTransaction.deserialize(prepared.transaction.serialize()).message);
   const signed = await signTransaction(prepared.transaction);
-  const signedMessage = signed.message.serialize();
-  if (originalMessage.length !== signedMessage.length || !originalMessage.every((byte, index) => byte === signedMessage[index]) || !signed.signatures[0]?.some(byte => byte !== 0)) throw new Error('Wallet returned an invalid or changed trade transaction.');
+  const returned = TransactionMessage.decompile(signed.message);
+  if (!signed.signatures[0]?.some(byte => byte !== 0)) throw new Error('Wallet did not sign the trade. Reconnect and preview again.');
+  if (!returned.payerKey.equals(original.payerKey) || returned.recentBlockhash !== original.recentBlockhash) throw new Error('Wallet changed the trade payer or blockhash. Preview again.');
+  const protectedInstructions = (message: TransactionMessage) => message.instructions.filter(ix => !ix.programId.equals(ComputeBudgetProgram.programId)).map(ix => ({
+    program: ix.programId.toBase58(), keys: ix.keys.map(k => [k.pubkey.toBase58(), k.isSigner, k.isWritable]), data: Array.from(ix.data)
+  }));
+  if (JSON.stringify(protectedInstructions(original)) !== JSON.stringify(protectedInstructions(returned))) throw new Error('Wallet changed trade instructions. The transaction was not submitted.');
+  for (const ix of returned.instructions.filter(ix => ix.programId.equals(ComputeBudgetProgram.programId))) {
+    const data = new DataView(ix.data.buffer, ix.data.byteOffset, ix.data.byteLength);
+    const validLimit = ix.data[0] === 2 && ix.data.length === 5 && data.getUint32(1, true) <= 1_400_000;
+    const validPrice = ix.data[0] === 3 && ix.data.length === 9 && data.getBigUint64(1, true) <= 1_000_000n;
+    if (!validLimit && !validPrice) throw new Error('Wallet requested an unsupported compute budget or excessive priority fee. Reduce the wallet fee and preview again.');
+  }
+  // Verify the exact wallet-signed transaction, including its priority fee.
+  const signedSimulation = await connection.simulateTransaction(signed, { sigVerify: true, commitment: 'confirmed' });
+  if (signedSimulation.value.err) throw new Error(`Signed trade simulation failed: ${JSON.stringify(signedSimulation.value.err)}. Preview again.`);
   const signature = signatureBase58(signed.signatures[0]!);
   try {
     await connection.sendRawTransaction(signed.serialize(), { preflightCommitment: 'confirmed' });

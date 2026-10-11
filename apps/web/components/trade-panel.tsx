@@ -58,9 +58,9 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
     } finally { setBusy(false); }
   }
 
-  return <section className="card launch-form" aria-labelledby="trade-heading">
-    <h2 id="trade-heading">Trade token</h2>
-    <p className="small">Solana devnet · Raydium bonding curve · Quotes include protocol, platform, and creator fees. Network fees and account rent are additional.</p>
+  return <section className="card launch-form trade-panel" aria-labelledby="trade-heading">
+    <div className="panel-title"><h2 id="trade-heading">Trade</h2><span>DEVNET</span></div>
+    <p className="small">Raydium bonding curve. Quotes include trading fees. Network fees and account rent are additional.</p>
     {graduated ? <p className="notice">This token has graduated to a CPMM pool. Trading for graduated tokens is coming next.</p> : <>
       <form onSubmit={preview}>
         <fieldset disabled={busy || uncertain}>
@@ -70,15 +70,15 @@ export function TradePanel({ mint, graduated }: { mint: string; graduated: boole
           </div>
           <label className="label" htmlFor="trade-amount">{side === "buy" ? "SOL to spend" : "Tokens to sell"}</label>
           <input id="trade-amount" inputMode="decimal" placeholder={side === "buy" ? "0.01" : "1000"} value={amount} onChange={event => setAmount(event.target.value)} required />
-          <label className="label" htmlFor="trade-slippage">Slippage tolerance (%)</label>
+          <label className="label" htmlFor="trade-slippage">Slippage (%)</label>
           <input id="trade-slippage" inputMode="decimal" value={slippage} onChange={event => setSlippage(event.target.value)} required />
-          <button className="button primary" type="submit" disabled={!wallet.publicKey}>{busy ? "Checking…" : "Preview trade"}</button>
+          <button className="button primary" type="submit" disabled={!wallet.publicKey}>{busy ? "Checking…" : "Preview trade →"}</button>
         </fieldset>
       </form>
       {quote && quote.input.owner.toBase58() === walletAddress && quote.input.mint.toBase58() === mint && <div className="notice">
         <p>Estimated received: {outputText} {side === "buy" ? "tokens" : "SOL"}</p>
         <p>Minimum received: {minimumText} {side === "buy" ? "tokens" : "SOL"}</p>
-        <button className="button primary" type="button" disabled={busy || !wallet.signTransaction} onClick={trade}>Confirm {side}</button>
+        <button className="button primary" type="button" disabled={busy || !wallet.signTransaction} onClick={trade}>Confirm {side} ↗</button>
       </div>}
     </>}
     {message && <p className="small" role="status">{message}</p>}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { PublicKey, Keypair, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { PublicKey, Keypair, TransactionMessage, VersionedTransaction, ComputeBudgetProgram } from '@solana/web3.js';
 import { quoteDevnetTrade, buildDevnetTrade, sendDevnetTrade, TradeSubmittedError, parseTradeAmount, formatTradeAmount, tradeMinimum } from '../../sdk/dist/devnet-trade.js';
 import { DEVNET_GENESIS_HASH } from '../../sdk/dist/launch-validation.js';
 const fixture = JSON.parse(await readFile(new URL('../fixtures/trade-devnet.json', import.meta.url)));
@@ -76,6 +76,29 @@ test('wallet cannot substitute a different transaction after simulation', async 
     tx.message.recentBlockhash = Keypair.generate().publicKey.toBase58();
     tx.signatures[0].fill(1);
     return tx;
-  }), /changed trade/);
+  }), /changed the trade/);
   assert.equal(f.calls.sent, 0);
+});
+
+ test('wallet can add a priority fee while preserving the trade', async () => {
+  const f = sendFixture();
+  const owner = Keypair.generate();
+  f.prepared.transaction = new VersionedTransaction(new TransactionMessage({ payerKey: owner.publicKey, recentBlockhash: f.prepared.latest.blockhash, instructions: [ComputeBudgetProgram.setComputeUnitLimit({units: 400000})] }).compileToV0Message());
+  let verifiedSigned = false;
+  f.connection.simulateTransaction = async (tx, options) => { if (options.sigVerify) verifiedSigned = true; return { value: { err: null } }; };
+  const signature = await sendDevnetTrade(f.connection, f.prepared, async tx => {
+    const message = TransactionMessage.decompile(tx.message);
+    message.instructions.push(ComputeBudgetProgram.setComputeUnitPrice({microLamports: 10000}));
+    const returned = new VersionedTransaction(message.compileToV0Message()); returned.sign([owner]); return returned;
+  });
+  assert.ok(signature.length > 80); assert.equal(verifiedSigned, true); assert.equal(f.calls.sent, 1);
+});
+test('wallet-added transfers and excessive priority fees are rejected', async () => {
+  const owner = Keypair.generate();
+  for (const instruction of [ComputeBudgetProgram.setComputeUnitPrice({microLamports: 1000001}), { programId: Keypair.generate().publicKey, keys: [], data: Buffer.from([1]) }]) {
+    const f = sendFixture();
+    f.prepared.transaction = new VersionedTransaction(new TransactionMessage({payerKey: owner.publicKey, recentBlockhash: f.prepared.latest.blockhash, instructions: []}).compileToV0Message());
+    await assert.rejects(sendDevnetTrade(f.connection, f.prepared, async tx => { const message = TransactionMessage.decompile(tx.message); message.instructions.push(instruction); const returned = new VersionedTransaction(message.compileToV0Message()); returned.sign([owner]); return returned; }), /changed trade instructions|excessive priority fee/);
+    assert.equal(f.calls.sent, 0);
+  }
 });

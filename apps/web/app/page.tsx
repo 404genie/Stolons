@@ -1,76 +1,38 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import type { LineageAccount } from "@stolons/sdk";
 import { Navigation } from "../components/nav";
-import { GENESIS_SUPPLY, MARKET_ALLOCATION, REPRODUCTION_RESERVE, CHILD_BURN_ATOMS, MAX_DIRECT_CHILDREN } from "@stolons/sdk";
+import { readLineages, readTokenInfo, shortAddress, statusLabel, type TokenInfo } from "../lib/tokens";
 
-import { DEVNET_ROOT_MINT, DEVNET_CHILD_MINT } from "../lib/devnet";
-
-const tokenAmount = (amount: bigint) => (Number(amount) / 1_000_000).toLocaleString("en-US");
-
+type Tab = "all" | "roots" | "children" | "mine";
 export default function HomePage() {
-  const [mint, setMint] = useState("");
-  const [error, setError] = useState("");
-  const router = useRouter();
-
-  function openToken(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const key = new PublicKey(mint.trim());
-      router.push(`/token/${key.toBase58()}`);
-      setError("");
-    } catch {
-      setError("Enter a valid Solana mint address.");
-    }
-  }
-
-  return (
-    <main>
-      <Navigation />
-      <div className="shell">
-        <section className="hero">
-          <div className="eyebrow">An on-chain family tree for tokens</div>
-          <h1>Memecoins that reproduce.</h1>
-          <p>Each token trades on Raydium. When a selected child graduates, its parent permanently burns 10 million tokens and passes on a small share of its ancestral mass.</p>
-          <div className="actions">
-            <a className="button primary" href="/launch">Launch a token</a>
-            <a className="button" href="#protocol">How Stolons works</a>
-          </div>
-          <form className="lookup" onSubmit={openToken}>
-            <input aria-label="Token mint" placeholder="Paste a token mint address" value={mint} onChange={(event) => setMint(event.target.value)} />
-            <button className="button" type="submit">Open</button>
-          </form>
-          {error && <p className="error">{error}</p>}
-          <p className="small">Launch and explore on Solana devnet. Connect a wallet with test SOL to start your token family.</p>
-        </section>
-
-        <section className="section" id="protocol">
-          <div className="section-head"><h2>One fixed mutation rule</h2><span className="pill">V1 · Solana</span></div>
-          <div className="grid">
-            <article className="card"><span className="label">Genesis supply</span><div className="metric">{tokenAmount(GENESIS_SUPPLY)}</div><p className="small">Six decimals. Standard SPL Token. Mint and freeze authorities are revoked.</p></article>
-            <article className="card"><span className="label">Market / reproduction</span><div className="metric">85% / 15%</div><p className="small">{tokenAmount(MARKET_ALLOCATION)} tokens go through Raydium; {tokenAmount(REPRODUCTION_RESERVE)} are locked for offspring.</p></article>
-            <article className="card"><span className="label">A successful child</span><div className="metric">{tokenAmount(CHILD_BURN_ATOMS)}</div><p className="small">The parent reserve burns this amount exactly. A token can have up to {MAX_DIRECT_CHILDREN} direct children.</p></article>
-          </div>
-        </section>
-
-        <section className="section" id="launch">
-          <div className="section-head"><h2>Find a family</h2></div>
-          <div className="card">
-            <h3>Inspect a Stolons token</h3>
-            <p className="small">Enter its mint address to read the on-chain lineage PDA from the configured devnet program.</p>
-            <form className="lookup" onSubmit={openToken}>
-              <input aria-label="Token mint" placeholder="Mint address" value={mint} onChange={(event) => setMint(event.target.value)} />
-              <button className="button primary" type="submit">View token</button>
-            </form>
-            {error && <p className="error">{error}</p>}
-          </div>
-          <div className="actions"><a className="button" href={`/token/${DEVNET_ROOT_MINT}`}>View Devnet root</a><a className="button" href={`/token/${DEVNET_CHILD_MINT}`}>View Devnet child</a></div>
-          <div className="notice" style={{ marginTop: 14 }}>Ancestry changes only after Raydium CPMM migration is verified, the 150M reserve is claimed, and the parent burn succeeds. Raydium remains responsible for launch and trading.</div>
-        </section>
-        <footer className="footer"><span>Stolons · devnet first</span><span>Root and child lifecycle verified on Devnet.</span></footer>
-      </div>
-    </main>
-  );
+  const { connection } = useConnection(); const wallet = useWallet(); const router = useRouter();
+  const [entries, setEntries] = useState<LineageAccount[]>([]), [info, setInfo] = useState<Record<string, TokenInfo>>({});
+  const [loading, setLoading] = useState(true), [error, setError] = useState(""), [query, setQuery] = useState(""), [tab, setTab] = useState<Tab>("all"), [refresh, setRefresh] = useState(0);
+  useEffect(() => { let cancelled = false; setLoading(true); setError("");
+    readLineages(connection).then(async lineages => { if (cancelled) return; setEntries(lineages); setLoading(false); const details = await Promise.all(lineages.slice(0, 24).map(async entry => [entry.mint.toBase58(), await readTokenInfo(connection, entry.mint.toBase58())] as const)); if (!cancelled) setInfo(Object.fromEntries(details)); }).catch(() => { if (!cancelled) { setError("Could not load tokens from devnet. Try refreshing."); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [connection, refresh]);
+  const roots = entries.filter(entry => entry.generation === 0).length;
+  const filtered = entries.filter(entry => (tab === "all" || (tab === "roots" && entry.generation === 0) || (tab === "children" && entry.generation > 0) || (tab === "mine" && entry.creator.toBase58() === wallet.publicKey?.toBase58())) && `${entry.mint.toBase58()} ${info[entry.mint.toBase58()]?.name || ""} ${info[entry.mint.toBase58()]?.symbol || ""}`.toLowerCase().includes(query.toLowerCase().trim()));
+  function search(event: FormEvent) { event.preventDefault(); try { router.push(`/token/${new PublicKey(query.trim()).toBase58()}`); } catch { if (!filtered.length) setError("No matching token. Search by name or paste a Solana mint address."); } }
+  return <main><Navigation /><div className="shell">
+    <section className="discovery-hero"><div><div className="eyebrow"><span className="live-dot" />THE NEXT GENERATION OF MEMECOINS</div><h1>Start a token.<br /><span>Build a bloodline.</span></h1><p>Launch. Trade. Reproduce. Every successful child burns its parent’s supply and extends the family.</p><div className="actions"><Link className="button primary" href="/launch">Create a token <span>↗</span></Link><a className="text-link" href="#protocol">Explore the protocol →</a></div></div>
+      <div className="family-art" aria-label="A root token branching into descendants"><div className="art-caption">THE FAMILY GROWS.</div><div className="family-stem" /><div className="family-root"><img src="/stolons-logo.webp" alt="" /><span>ROOT</span></div><div className="family-branch branch-one" /><div className="family-branch branch-two" /><div className="family-node node-one"><b>01</b><span>CHILD</span></div><div className="family-node node-two"><b>02</b><span>CHILD</span></div><div className="family-node node-three"><b>03</b><span>NEXT GEN</span></div><div className="art-footer"><span>Independent tokens.</span><span>Connected by ancestry.</span></div></div>
+    </section>
+    <div className="stats-strip"><div><span>Tokens launched</span><b>{loading ? "—" : entries.length}</b></div><div><span>Root families</span><b>{loading ? "—" : roots}</b></div><div><span>Descendants</span><b>{loading ? "—" : entries.length - roots}</b></div><div><span>Burn per successful child</span><b>10M <small>parent tokens</small></b></div></div>
+    <section className="discovery-section" id="discover"><div className="section-head"><div><div className="eyebrow">THE ECOSYSTEM</div><h2>Discover tokens</h2></div><button className="button compact" onClick={() => setRefresh(value => value + 1)} disabled={loading}>↻ Refresh</button></div>
+      <div className="discovery-toolbar"><div className="tabs" role="group" aria-label="Token filters">{([['all','All tokens'],['roots','Root families'],['children','Descendants'],['mine','My launches']] as const).map(([value,label]) => <button key={value} aria-pressed={tab === value} className={tab === value ? "selected" : ""} onClick={() => setTab(value)}>{label}</button>)}</div><form className="search-field" onSubmit={search}><span aria-hidden="true">⌕</span><input aria-label="Search tokens" placeholder="Search name, ticker or mint…" value={query} onChange={event => setQuery(event.target.value)} /><button type="submit" aria-label="Open mint address">↗</button></form></div>
+      {error && <p className="error" role="alert">{error}</p>}
+      {loading ? <div className="token-grid">{[1,2,3,4,5,6].map(i => <div className="token-card skeleton" key={i}><div /><div /><div /></div>)}</div> : filtered.length ? <div className="token-grid">{filtered.slice(0, 24).map(entry => { const mint = entry.mint.toBase58(), detail = info[mint]; return <Link className="token-card" href={`/token/${mint}`} key={mint}><div className="token-card-top"><div className="token-avatar">{detail?.image ? <img src={detail.image} alt="" onError={event => { event.currentTarget.style.display = "none"; }} /> : <span>{detail?.symbol.slice(0, 2) || "ST"}</span>}</div><span className="generation">G{entry.generation}</span></div><h3>{detail?.name || shortAddress(mint)}</h3><div className="token-ticker">${detail?.symbol || "TOKEN"}<span>{shortAddress(mint)}</span></div><p className="token-description">{detail?.description || (entry.generation === 0 ? "A new root in the Stolons ecosystem." : "An independent token. Part of a bigger family.")}</p><div className="token-card-bottom"><span className="status-tag">{statusLabel(entry.status)}</span><span>{entry.directChildrenCount} children <b>↗</b></span></div></Link>; })}</div> : <div className="empty-state"><h3>{tab === "mine" && !wallet.publicKey ? "Connect to see your launches" : "No tokens here yet"}</h3><p>Every family starts with one token.</p><Link className="button primary" href="/launch">Create a token ↗</Link></div>}
+      {filtered.length > 24 && <p className="small">Showing the 24 newest matches. Search a mint address to open any token.</p>}
+    </section>
+    <section className="protocol-section" id="protocol"><div className="section-head"><div><div className="eyebrow">BUILT TO BRANCH OUT</div><h2>More than a single token.</h2></div><span className="small">Standard SPL tokens. Raydium liquidity.</span></div><div className="protocol-grid"><article><span className="step-number">01</span><h3>Launch the root</h3><p>Create a token with a fixed 1B supply. 80% goes to the bonding curve, 5% to migration liquidity, and 15% to the reproduction reserve.</p></article><article><span className="step-number">02</span><h3>Grow the family</h3><p>After graduation and reserve activation, open a reproduction round. The community proposes and selects the next child.</p></article><article><span className="step-number">03</span><h3>Make success count</h3><p>A selected child that graduates burns 10M parent tokens. Each token can have up to 15 direct children, with ancestry recorded on-chain.</p></article></div></section>
+    <footer className="footer"><span>STOLONS <span className="muted">/ Memecoins that reproduce.</span></span><span><span className="live-dot" /> Solana devnet · Test tokens only</span></footer>
+  </div></main>;
 }

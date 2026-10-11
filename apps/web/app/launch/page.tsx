@@ -101,39 +101,27 @@ export default function LaunchPage() {
     finally { setBusy(false); }
   }
 
-  return (
-    <main><Navigation /><div className="shell">
-      <section className="token-head"><div className="eyebrow">Start a family · devnet</div><h1>Launch a root token.</h1><p className="small">Create a Raydium token and its Stolons family in one transaction.</p></section>
-      <div className="grid">
-        <article className="card"><span className="label">Fixed supply</span><div className="metric">1 billion</div><p className="small">Six decimals, with mint and freeze authorities revoked at launch.</p></article>
-        <article className="card"><span className="label">Reproduction reserve</span><div className="metric">150 million</div><p className="small">Locked until graduation, then claimed into the family reserve.</p></article>
-        <article className="card"><span className="label">Devnet graduation target</span><div className="metric">1 test SOL</div><p className="small">800M tokens on the curve and 50M for migration liquidity.</p></article>
-      </div>
-      <section className="section"><div className="card launch-form">
-        {!preview && <form onSubmit={prepare}>
-          <fieldset disabled={busy || submitted}>
-            <label className="label" htmlFor="token-name">Token name</label><input id="token-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your token name" required maxLength={32} />
-            <label className="label" htmlFor="token-symbol">Ticker</label><input id="token-symbol" value={symbol} onChange={(event) => setSymbol(event.target.value)} placeholder="TOKEN" required maxLength={10} />
-            <label className="label" htmlFor="token-description">Description</label><textarea id="token-description" rows={4} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Tell people what your token is about" maxLength={2000} />
-            <label className="label" htmlFor="token-image">Token image</label><input id="token-image" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setImage(event.target.files?.[0] ?? null)} />
-            {imagePreview && <img className="token-image-preview" src={imagePreview} alt="Your selected token image" />}
-            <p className="small">PNG, JPG, or WebP up to 3 MB. Your image and token details will be public.</p>
-            <details><summary className="small">Add social links (optional)</summary><label className="label" htmlFor="token-website">Website</label><input id="token-website" type="url" value={website} onChange={(event) => setWebsite(event.target.value)} placeholder="https://your-project.com" maxLength={300} /><label className="label" htmlFor="token-twitter">X</label><input id="token-twitter" type="url" value={twitter} onChange={(event) => setTwitter(event.target.value)} placeholder="https://x.com/yourproject" maxLength={300} /><label className="label" htmlFor="token-telegram">Telegram</label><input id="token-telegram" type="url" value={telegram} onChange={(event) => setTelegram(event.target.value)} placeholder="https://t.me/yourproject" maxLength={300} /></details>
-            <div className="actions"><button className="button primary" type="submit" disabled={busy || !wallet.publicKey}>{busy ? "Preparing…" : "Preview launch"}</button></div>
-          </fieldset>
-        </form>}
-        {preview && <>
-          <h2>{preview.input.name} · {preview.input.symbol}</h2>
-          <img className="token-image-preview" src={preview.imageUrl} alt={`${preview.input.name} token image`} />
-          {preview.description && <p className="small">{preview.description}</p>}
-          <dl className="launch-details"><dt>Mint</dt><dd>{preview.input.mint.toBase58()}</dd><dt>Creator wallet</dt><dd>{preview.input.creator.toBase58()}</dd><dt>Estimated launch cost</dt><dd>{(preview.cost / 1_000_000_000).toFixed(6)} test SOL</dd></dl>
-          {!submitted && <div className="actions"><button className="button primary" disabled={busy || !wallet.publicKey?.equals(preview.input.creator)} onClick={launch}>{busy ? "Launching…" : "Sign and launch"}</button><button className="button" disabled={busy} onClick={() => { setPreview(null); setMessage(""); setError(""); }}>Edit details</button></div>}
-          {submitted && <div className="actions"><Link className="button primary" href={`/token/${preview.input.mint.toBase58()}`}>{launched ? "View your token" : "Inspect token status"}</Link>{signature && <a className="button" href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction</a>}</div>}
-        </>}
-        {!wallet.publicKey && <p className="small">Connect your wallet using the button in the header. Use devnet SOL for transaction fees.</p>}
-        <div aria-live="polite">{message && <p className="small">{message}</p>}{error && <p className="error" role="alert">{error}</p>}</div>
-      </div></section>
-      <footer className="footer"><Link href="/">← Stolons home</Link><span>Devnet launch · Raydium</span></footer>
-    </div></main>
-  );
+  return <main><Navigation /><div className="shell">
+    <section className="page-intro"><div className="breadcrumbs"><Link href="/">Discover</Link><span>/</span><span>Create token</span></div><div className="eyebrow">EVERY FAMILY STARTS HERE</div><h1>Create your root token.</h1><p>Give it a name. Give it a face. Launch it on Raydium and start a family that can keep growing.</p></section>
+    <div className="workspace-grid launch-workspace"><section className="card launch-form">
+      <div className="panel-title"><h2>{preview ? (launched ? "Token launched" : "Review your launch") : "Token details"}</h2><span>{preview ? "02 / CONFIRM" : "01 / CREATE"}</span></div>
+      {!preview && <form onSubmit={prepare}><fieldset disabled={busy || submitted}>
+        <div className="form-row"><div><label className="label" htmlFor="token-name">Token name</label><input id="token-name" value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Stolons" required maxLength={32} /></div><div><label className="label" htmlFor="token-symbol">Ticker</label><input id="token-symbol" value={symbol} onChange={event => setSymbol(event.target.value)} placeholder="e.g. STLN" required maxLength={10} /></div></div>
+        <label className="label" htmlFor="token-description">Description <span className="muted">(optional)</span></label><textarea id="token-description" rows={4} value={description} onChange={event => setDescription(event.target.value)} placeholder="What's the story behind your token?" maxLength={2000} />
+        <label className="label" htmlFor="token-image">Token image</label><label className="upload-zone" htmlFor="token-image">{imagePreview ? <img src={imagePreview} alt="Selected token image" /> : <span className="upload-icon">↑</span>}<div><strong>{image ? image.name : "Choose a token image"}</strong><span>PNG, JPG or WebP · Up to 3 MB</span></div></label><input className="visually-hidden" id="token-image" type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setImage(event.target.files?.[0] ?? null)} />
+        <p className="small">Your image and token details will be public.</p>
+        <details><summary className="small">Social links <span className="muted">— optional</span></summary><label className="label" htmlFor="token-website">Website</label><input id="token-website" type="url" value={website} onChange={event => setWebsite(event.target.value)} placeholder="https://your-project.com" maxLength={300} /><div className="form-row"><div><label className="label" htmlFor="token-twitter">X profile</label><input id="token-twitter" type="url" value={twitter} onChange={event => setTwitter(event.target.value)} placeholder="https://x.com/yourproject" maxLength={300} /></div><div><label className="label" htmlFor="token-telegram">Telegram</label><input id="token-telegram" type="url" value={telegram} onChange={event => setTelegram(event.target.value)} placeholder="https://t.me/yourproject" maxLength={300} /></div></div></details>
+        <div className="actions"><button className="button primary" type="submit" disabled={busy || !wallet.publicKey}>{busy ? "Preparing launch…" : "Preview launch →"}</button></div>
+      </fieldset></form>}
+      {preview && <><div className="token-heading"><div className="token-avatar"><img src={preview.imageUrl} alt="" /></div><div><h2>{preview.input.name}</h2><span className="small">${preview.input.symbol} · Root token</span></div></div>{preview.description && <p className="small">{preview.description}</p>}<dl className="launch-details"><dt>Mint address</dt><dd>{preview.input.mint.toBase58()}</dd><dt>Creator wallet</dt><dd>{preview.input.creator.toBase58()}</dd><dt>Estimated launch cost</dt><dd>{(preview.cost / 1_000_000_000).toFixed(6)} test SOL</dd></dl>
+        {!submitted && <div className="actions"><button className="button primary" disabled={busy || !wallet.publicKey?.equals(preview.input.creator)} onClick={launch}>{busy ? "Launching…" : "Sign and launch ↗"}</button><button className="button" disabled={busy} onClick={() => { setPreview(null); setMessage(""); setError(""); }}>Edit details</button></div>}
+        {submitted && <div className="actions"><Link className="button primary" href={`/token/${preview.input.mint.toBase58()}`}>{launched ? "Open token page →" : "Inspect token status →"}</Link>{signature && <a className="button" href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}</div>}
+      </>}
+      {!wallet.publicKey && <div className="notice">Connect your wallet in the header to preview your launch. You'll need devnet SOL for transaction fees.</div>}
+      <div aria-live="polite">{message && <p className="notice">{message}</p>}{error && <p className="error" role="alert">{error}</p>}</div>
+    </section><aside className="launch-aside"><article className="card"><div className="aside-label">YOUR TOKEN PREVIEW</div><div className="token-heading"><div className="token-avatar">{imagePreview ? <img src={imagePreview} alt="" /> : <span>{symbol.slice(0, 2) || "ST"}</span>}</div><div><h2>{name || "Your token name"}</h2><span className="small">${symbol || "TICKER"}</span></div></div><p className="small">{description || "Your token's story starts here."}</p><span className="pill">Generation 0 · Root family</span></article>
+      <article className="card"><div className="aside-label">FIXED TOKEN ECONOMICS</div><div className="metric">1,000,000,000</div><p className="small">Total tokens · 6 decimals</p><div className="allocation-bar"><i /><i /><i /></div><div className="allocation-row"><span>Bonding curve</span><b>80%</b></div><div className="allocation-row"><span>Migration liquidity</span><b>5%</b></div><div className="allocation-row"><span>Reproduction reserve</span><b>15%</b></div><p className="small" style={{ marginTop: 18, marginBottom: 0 }}>Mint and freeze authorities are revoked at launch. The reproduction reserve stays locked until graduation.</p></article>
+      <div className="notice" style={{ margin: 0 }}>Devnet launch target: <strong>1 test SOL.</strong> These tokens are for testing. Your wallet stays in control throughout the launch.</div>
+    </aside></div><footer className="footer"><Link href="/">STOLONS / Discover</Link><span>Solana devnet · Powered by Raydium</span></footer>
+  </div></main>;
 }

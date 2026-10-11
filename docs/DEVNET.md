@@ -92,3 +92,9 @@ Try a small buy, check the transaction on Solana Explorer, then sell part of the
 This update supports the Raydium bonding curve on devnet. A completed curve or a registered CPMM pool shows that graduated trading is pending rather than submitting a curve trade. Mainnet remains disabled.
 
 Validation: `pnpm sdk:build && pnpm test:client && pnpm web:build`. The trade regression fixtures are public devnet account snapshots, including a simulated post-buy pool; tests run without network access.
+
+### Frontend workspace
+
+The discovery page reads registered lineages directly from devnet and loads token names, symbols, images, and social links from Metaplex metadata. Filter roots, descendants, or launches by the connected creator wallet; paste a mint address to open a token. Token pages show actual bonding-curve fundraising progress, supply, parent/root links, reserve state, and trading. Launch includes image upload and a live identity preview. Reproduction shows eligibility and supports opening the on-chain round. Proposal, vote, child-launch web actions and graduated CPMM trading remain pending.
+
+Wallets may add compute-budget priority-fee instructions to a trade. The client verifies unchanged payer, blockhash, and all non-budget instructions, caps compute units at 1.4M and price at 1M micro-lamports per unit, then simulates the exact signed transaction with signature verification before submission.

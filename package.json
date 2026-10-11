@@ -19,6 +19,7 @@
     "idl:check": "pnpm --filter @stolons/sdk check-idl",
     "stack:check": "node scripts/check-sbf-stack.mjs",
     "typecheck:clients": "pnpm --filter @stolons/web --filter @stolons/indexer --parallel typecheck",
+    "test:web": "node --import tsx --test tests/web/*.test.mjs",
     "test:client": "node --test tests/client/*.test.mjs"
   },
   "devDependencies": {
