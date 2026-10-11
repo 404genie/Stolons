@@ -68,7 +68,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
     quote_mint: c.quote, launchlab_program: c.launchpad, token_program: TOKEN_PROGRAM_ID,
     associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID, system_program: SYSTEM_PROGRAM_ID, instructions: INSTRUCTIONS_SYSVAR_ID
   });
-  const instructions = appendAfterInitializeV2([init], c.launchpad, { platformConfig: c.platform, poolState: pool, baseMint: mint, quoteMint: c.quote }, registration);
+  const instructions = appendAfterInitializeV2([init], c.launchpad, { platformConfig: c.platform, poolState: pool, baseMint: mint, quoteMint: c.quote, metadata: {name:input.name,symbol:input.symbol,metadataUri:input.metadataUri} }, registration);
   const latest = await connection.getLatestBlockhash("confirmed");
   const message = new TransactionMessage({ payerKey: creator, recentBlockhash: latest.blockhash, instructions: input.parentMint?[ComputeBudgetProgram.setComputeUnitLimit({units:400000}),...instructions]:instructions });
   const table = input.lookupTable ? (await connection.getAddressLookupTable(input.lookupTable)).value : null;

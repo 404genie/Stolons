@@ -1,4 +1,4 @@
-use crate::{constants::CHILD_BURN_ATOMS, errors::StolonsError};
+use crate::errors::StolonsError;
 use anchor_lang::prelude::*;
 
 pub fn root_mass_transfer(parent_mass: u128, burn_atoms: u64, supply_before_burn: u64) -> Result<u128> {
@@ -19,7 +19,7 @@ pub fn validate_family_move(parent_mass: u128, child_mass: u128, transferred: u1
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::GENESIS_SUPPLY;
+    use crate::constants::{GENESIS_SUPPLY, CHILD_BURN_ATOMS};
 
     #[test]
     fn first_generation_transfer_is_exactly_one_percent() {

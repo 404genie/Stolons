@@ -19,7 +19,7 @@ use crate::{
     events::*,
     math::{root_mass_transfer, validate_family_move},
     raydium::{
-        self, anchor_ix_discriminator, read_launch_pool, validate_platform_config,
+        anchor_ix_discriminator, read_launch_pool, validate_platform_config,
         validate_stolons_launch, validate_vesting_record, verify_cpmm_pool,
         verify_initialize_v2_before_current,
     },
@@ -200,6 +200,7 @@ pub fn register_root_launch(ctx: Context<RegisterRootLaunch>) -> Result<()> {
         ctx.accounts.pool_state.key(),
         ctx.accounts.mint.key(),
         config.quote_mint,
+        None,
     )?;
     let now = Clock::get()?.unix_timestamp;
     ctx.accounts.family.root_mint = ctx.accounts.mint.key();
@@ -896,6 +897,7 @@ pub fn register_candidate_launch(ctx: Context<RegisterCandidateLaunch>) -> Resul
         ctx.accounts.pool_state.key(),
         ctx.accounts.child_mint.key(),
         ctx.accounts.config.quote_mint,
+        Some((&ctx.accounts.proposal.name, &ctx.accounts.proposal.symbol, &ctx.accounts.proposal.metadata_uri)),
     )?;
     create_platform_vesting(
         &ctx.accounts.launchlab_program.to_account_info(),

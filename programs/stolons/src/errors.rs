@@ -54,5 +54,7 @@ pub enum StolonsError {
     InvalidVoteTokenAccount,
     #[msg("The account does not match its expected program-derived address")]
     InvalidPda,
+    #[msg("The launched child metadata does not match its winning proposal")]
+    ProposalMetadataMismatch,
 }
 
