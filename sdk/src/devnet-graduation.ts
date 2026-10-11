@@ -1,6 +1,6 @@
 import { Connection, PublicKey, ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { DEVNET_PROGRAM_ID, LaunchpadPool, getPdaLaunchpadAuth, getPdaVestId } from '@raydium-io/raydium-sdk-v2';
+import { DEVNET_PROGRAM_ID, ALL_PROGRAM_ID, LaunchpadPool, getPdaLaunchpadAuth, getPdaVestId } from '@raydium-io/raydium-sdk-v2';
 import { StolonsClient } from './client.js';
 import { buildInstruction } from './builders.js';
 import { deriveConfigPda, deriveLineagePda, deriveCandidatePda, deriveFamilyPda, deriveReproductionAuthorityPda, deriveReproductionVaultPda, deriveVaultAuthorityPda } from './pda.js';
@@ -8,13 +8,15 @@ import { deriveCpmmPool, deriveLaunchLabPool } from './raydium.js';
 import { decodeLaunchConfig, DEVNET_GENESIS_HASH } from './launch-validation.js';
 import { SYSTEM_PROGRAM_ID } from './constants.js';
 export type GraduationPhase = 'trading' | 'migrating' | 'register' | 'claim' | 'activate' | 'active';
-export async function readGraduation(connection: Connection, programId: PublicKey, mint: PublicKey) {
-  if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error('Graduation is enabled on Solana devnet only.');
+export async function readGraduation(connection: Connection, programId: PublicKey, mint: PublicKey, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
+  const expectedGenesis=cluster==='devnet'?DEVNET_GENESIS_HASH:'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
+  if (await connection.getGenesisHash() !== expectedGenesis) throw new Error('Graduation RPC cluster mismatch.');
+  const programs=cluster==='devnet'?DEVNET_PROGRAM_ID:ALL_PROGRAM_ID;
   const client = new StolonsClient(connection, programId), config = deriveConfigPda(programId);
   const [account, lineage] = await Promise.all([connection.getAccountInfo(config,'confirmed'),client.getLineage(mint)]);
   if (!account?.owner.equals(programId) || !lineage) throw new Error('Stolons lineage or configuration is missing.');
   const c = decodeLaunchConfig(account.data), cpmmProgram = new PublicKey(account.data.subarray(104,136)), cpmmConfig = new PublicKey(account.data.subarray(232,264));
-  if (!c.launchpad.equals(DEVNET_PROGRAM_ID.LAUNCHPAD_PROGRAM) || !cpmmProgram.equals(DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM) || !c.quote.equals(NATIVE_MINT)) throw new Error('Unsupported graduation configuration.');
+  if (!c.launchpad.equals(programs.LAUNCHPAD_PROGRAM) || !cpmmProgram.equals(programs.CREATE_CPMM_POOL_PROGRAM) || !c.quote.equals(NATIVE_MINT)) throw new Error('Unsupported graduation configuration.');
   const launchPool = deriveLaunchLabPool(c.launchpad,mint,c.quote), cpmmPool = deriveCpmmPool(cpmmProgram,cpmmConfig,mint,c.quote);
   if (!lineage.launchPool.equals(launchPool)) throw new Error('Launch pool does not match this lineage.');
   const poolAccount = await connection.getAccountInfo(launchPool,'confirmed');
@@ -32,8 +34,8 @@ export async function readGraduation(connection: Connection, programId: PublicKe
   else throw new Error('This lineage cannot be activated through graduation.');
   return { phase, lineage, pool, config, c, cpmmProgram, cpmmPool, programId, mint };
 }
-export async function buildGraduationStep(connection: Connection, programId: PublicKey, mint: PublicKey, payer: PublicKey, lookupTable?: PublicKey) {
-  const state = await readGraduation(connection,programId,mint);
+export async function buildGraduationStep(connection: Connection, programId: PublicKey, mint: PublicKey, payer: PublicKey, lookupTable?: PublicKey, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
+  const state = await readGraduation(connection,programId,mint,cluster);
   const { phase,lineage,pool,config,c,cpmmProgram,cpmmPool } = state;
   if (['trading','migrating','active'].includes(phase)) throw new Error(phase==='active'?'This family is already active.':phase==='trading'?'Finish the bonding curve first.':'Raydium migration is pending. Refresh shortly.');
   const child = !lineage.parentMint.equals(PublicKey.default), lineageKey=deriveLineagePda(programId,mint), candidate=deriveCandidatePda(programId,mint), parent=deriveLineagePda(programId,lineage.parentMint);

@@ -8,8 +8,8 @@ const labels:Record<GraduationPhase,string>={trading:'Bonding curve in progress'
 export function GraduationPanel({mint,onUpdated}:{mint:string;onUpdated:()=>void}) {
  const {connection}=useConnection(),wallet=useWallet();
  const [phase,setPhase]=useState<GraduationPhase|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[signature,setSignature]=useState(''),[uncertain,setUncertain]=useState(false),[refresh,setRefresh]=useState(0);
- useEffect(()=>{let cancelled=false;setPhase(null);(async()=>{try{const api=await import('@stolons/sdk/devnet-graduation');const state=await api.readGraduation(connection,new PublicKey(STOLONS_PROGRAM_ID),new PublicKey(mint));if(!cancelled)setPhase(state.phase);}catch(cause){if(!cancelled)setError(cause instanceof Error?cause.message:'Could not read graduation.');}})();return()=>{cancelled=true};},[connection,mint,refresh]);
- useEffect(()=>{if(phase!=='migrating')return;const timer=setInterval(()=>setRefresh(value=>value+1),15000);return()=>clearInterval(timer);},[phase]);
+ useEffect(()=>{let cancelled=false;setError('');(async()=>{try{const api=await import('@stolons/sdk/devnet-graduation');const state=await api.readGraduation(connection,new PublicKey(STOLONS_PROGRAM_ID),new PublicKey(mint));if(!cancelled)setPhase(state.phase);}catch(cause){if(!cancelled)setError(cause instanceof Error?cause.message:'Could not read graduation.');}})();return()=>{cancelled=true};},[connection,mint,refresh]);
+ useEffect(()=>{if(phase==='active')return;const timer=setInterval(()=>setRefresh(value=>value+1),15000);return()=>clearInterval(timer);},[phase]);
  async function activate(){if(!wallet.publicKey||!wallet.signTransaction)return;setBusy(true);setError('');setMessage('Preparing the next activation step…');try{
   const [api,trade]=await Promise.all([import('@stolons/sdk/devnet-graduation'),import('@stolons/sdk/devnet-trade')]);
   const prepared=await api.buildGraduationStep(connection,new PublicKey(STOLONS_PROGRAM_ID),new PublicKey(mint),wallet.publicKey,new PublicKey(DEVNET_LAUNCH_LOOKUP_TABLE));

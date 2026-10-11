@@ -31,3 +31,7 @@ test('CPMM buy and sell preserve reviewed minimums and use the migrated pool',as
  }
  const stats=await readCpmmStats(x.connection,x.program,x.mint);assert.equal(stats.marketCapSol,f.stats.marketCapSol);assert.equal(stats.liquiditySol,f.stats.liquiditySol);assert.ok(stats.priceSol>0);
 });
+
+test('keeper mainnet mode rejects a devnet RPC before reading or signing accounts',async()=>{
+ const x=fixture();await assert.rejects(readGraduation(x.connection,x.program,x.mint,'mainnet-beta'),/cluster mismatch/);
+});

@@ -106,3 +106,13 @@ The token page reads the LaunchLab status: trading, migration pending, or migrat
 Migrated token trades use the canonical configured CPMM pool. Quotes subtract protocol, fund, and creator fees held in vaults from usable reserves, apply SDK swap calculations with direction-aware creator fees, and enforce the reviewed minimum. Existing wrapped-SOL accounts remain untouched.
 
 Graduated pages show market cap and liquidity in test SOL, and token age from the on-chain creation timestamp. Market cap uses current minted supply (including locked reserve) at spot pool price; liquidity values both reserves at that price. One-hour volume scans confirmed CPMM swaps and quote-vault turnover. Incomplete, excessive, missing, or netted multiple-swap history shows unavailable rather than an invented number. Production volume should move to indexed swap events for high-throughput pools. The market endpoint caches responses for 30 seconds.
+
+### Automatic graduation keeper
+
+`services/keeper/graduation.mjs` scans pending Stolons lineages and resumes pool registration, reproduction reserve claim, and root activation or child finalization. Raydium still performs the liquidity migration. Run it as one continuously running backend service; it does not depend on a browser session. The keeper pays fees and account rent with a dedicated funded server wallet. Protocol authority keys are not needed.
+
+Build the SDK, provide the settings from `services/keeper/.env.example`, then inspect a dry run with `node services/keeper/graduation.mjs --once`. Start automatic submission with `node services/keeper/graduation.mjs --apply`. Each step is signed, simulated, confirmed, and reread before proceeding. Uncertain submission or confirmation halts the worker for operator review. A restart discovers the on-chain remaining step. Run only one instance and monitor logs and payer SOL balance.
+
+For mainnet, explicitly set `KEEPER_CLUSTER=mainnet-beta`, the mainnet RPC, deployed Stolons program ID, and a mainnet lookup table if needed. The SDK verifies the genesis hash and canonical Raydium programs. Mainnet is not deployed or enabled by these changes; provision and test the worker before opening mainnet launches. Users then need no graduation activation approvals. Devnet retains manual controls for testing.
+
+Discover now separates new launches (unmigrated pools) and graduated tokens (migrated CPMM pools), independently of reserve activation. Graduated token pages lead with market statistics, while curve and migration status refresh automatically.
