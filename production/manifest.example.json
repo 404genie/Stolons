@@ -1,0 +1,22 @@
+{
+  "cluster": "mainnet-beta",
+  "programId": null,
+  "upgradeAuthority": null,
+  "configAuthority": null,
+  "treasury": null,
+  "keeperWallet": null,
+  "launchlabProgram": "LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj",
+  "cpmmProgram": "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
+  "launchlabConfig": "6s1xP3hpbAfFoNtUNF8mfHsjr2Bd97JxFJRWLbL6aHuX",
+  "platformConfig": null,
+  "cpmmConfig": null,
+  "lookupTable": null,
+  "proposalWindowSeconds": 86400,
+  "votingWindowSeconds": 86400,
+  "candidateLaunchWindowSeconds": 86400,
+  "candidateMigrationWindowSeconds": 604800,
+  "proposalFeeLamports": null,
+  "graduationTargetLamports": null,
+  "platformFeeRate": null,
+  "creatorFeeRate": null
+}

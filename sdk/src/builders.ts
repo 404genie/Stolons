@@ -14,7 +14,7 @@ export const ACCOUNT_SCHEMAS = {
   initialize_config: [
     ["config", false, true], ["authority", true, true], ["launchlab_program", false, false],
     ["cpmm_program", false, false], ["launchlab_config", false, false], ["platform_config", false, false],
-    ["quote_mint", false, false], ["system_program", false, false]
+    ["quote_mint", false, false], ["system_program", false, false], ["program_data", false, false]
   ],
   set_paused: [["config", false, true], ["authority", true, false]],
   register_root_launch: [

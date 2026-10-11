@@ -71,9 +71,17 @@ pub struct InitializeConfig<'info> {
     #[account(address = args.quote_mint)]
     pub quote_mint: Account<'info, Mint>,
     pub system_program: Program<'info, System>,
+    // Bind the one-time initializer to this executable's canonical loader state.
+    #[account(
+        seeds = [crate::ID.as_ref()],
+        bump,
+        seeds::program = anchor_lang::solana_program::bpf_loader_upgradeable::ID
+    )]
+    pub program_data: Account<'info, ProgramData>,
 }
 
 pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigArgs) -> Result<()> {
+    validate_initializer_authority(ctx.accounts.program_data.upgrade_authority_address, ctx.accounts.authority.key())?;
     require!(args.proposal_window > 0 && args.proposal_window <= 30 * 86_400, StolonsError::InvalidConfiguration);
     require!(args.voting_window > 0 && args.voting_window <= 30 * 86_400, StolonsError::InvalidConfiguration);
     require!(args.candidate_launch_window > 0 && args.candidate_launch_window <= 7 * 86_400, StolonsError::InvalidConfiguration);
@@ -1418,3 +1426,20 @@ fn reproduction_authority_address() -> Result<(Pubkey, u8)> {
     Ok(Pubkey::find_program_address(&[REPRODUCTION_AUTHORITY_SEED], &crate::ID))
 }
 
+
+fn validate_initializer_authority(upgrade_authority: Option<Pubkey>, initializer: Pubkey) -> Result<()> {
+    require!(upgrade_authority == Some(initializer), StolonsError::InvalidConfiguration);
+    Ok(())
+}
+
+#[cfg(test)]
+mod initializer_authority_tests {
+    use super::*;
+    #[test]
+    fn only_current_upgrade_authority_may_initialize() {
+        let authority = Pubkey::new_unique();
+        assert!(validate_initializer_authority(Some(authority), authority).is_ok());
+        assert!(validate_initializer_authority(Some(Pubkey::new_unique()), authority).is_err());
+        assert!(validate_initializer_authority(None, authority).is_err());
+    }
+}

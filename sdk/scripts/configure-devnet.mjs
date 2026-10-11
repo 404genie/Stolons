@@ -60,7 +60,7 @@ const args = {
   candidateMigrationWindow: 86400n, proposalFeeLamports: 100_000n
 };
 const init = buildInstruction(program, 'initialize_config', {
-  config, authority: wallet, launchlab_program: launchpad, cpmm_program: cpmm,
+  config, authority: wallet, program_data: programData, launchlab_program: launchpad, cpmm_program: cpmm,
   launchlab_config: launchConfig, platform_config: platform, quote_mint: quote, system_program: SYSTEM_PROGRAM_ID
 }, args);
 if (accounts[7]) {

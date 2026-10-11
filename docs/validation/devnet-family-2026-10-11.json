@@ -1,0 +1,14 @@
+{
+  "cluster": "devnet",
+  "programId": "4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ",
+  "checkedOn": "2026-10-11",
+  "transactionsSent": 0,
+  "root": "AHiWHhZpWwCQCENcsXLrrfywUNnJSqraSAnKnLq3ZcJj",
+  "genesisRootMass": "1000000000000000",
+  "activeTokens": 2,
+  "lineages": 2,
+  "tokens": [
+    {"mint":"AHiWHhZpWwCQCENcsXLrrfywUNnJSqraSAnKnLq3ZcJj","generation":0,"successfulChildren":1,"supply":"990000000000000","reserve":"140000000000000","requiredParentBurn":"10000000000000"},
+    {"mint":"2LjFu7q9TAjpD15GYV2YYDtsuZYheBJSsL43DrySEZXm","generation":1,"successfulChildren":0,"supply":"1000000000000000","reserve":"150000000000000","requiredParentBurn":"0"}
+  ]
+}

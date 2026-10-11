@@ -1,0 +1,70 @@
+# Mainnet preparation — 2026-10-11
+
+## Verified devnet settlement
+
+Read-only RPC inspection verified the newly tested family:
+
+| Account | Address | Result |
+|---|---|---|
+| Parent | `AHiWHhZpWwCQCENcsXLrrfywUNnJSqraSAnKnLq3ZcJj` | Active root, one successful child |
+| Child | `2LjFu7q9TAjpD15GYV2YYDtsuZYheBJSsL43DrySEZXm` | Active generation-one descendant |
+| Parent supply | — | 990,000,000 tokens |
+| Parent reserve | — | 140,000,000 tokens |
+| Child reserve | — | 150,000,000 tokens |
+| Required parent burn | — | 10,000,000 tokens |
+| Conserved root ancestry mass | — | 1,000,000,000,000,000 atoms |
+
+Both mint and freeze authorities were revoked. The earlier reference family also passed the same checks. This validates settlement; it does not establish multi-wallet voting, adversarial account handling, or generation-two settlement. Raw results for the new family are in `docs/validation/devnet-family-2026-10-11.json`.
+
+## Preparation included in this branch
+
+- The one-time initializer now requires the current upgrade authority from this program's canonical, loader-owned ProgramData PDA. The SDK initialization account schema and devnet configuration script include that account. A Rust test covers correct, unrelated and absent upgrade authorities. This patch is source-only until compiled and deployed; existing devnet configuration and user actions are unaffected.
+- `production/manifest.example.json` lists public deployment identities and economics. Empty identities and fees deliberately fail validation. Suggested windows are 24 hours for proposals/votes/selected-child launch and seven days for migration. These are drafts; config durations become immutable after initialization.
+- `scripts/production/preflight.mjs` performs local manifest validation or read-only on-chain checks. It never submits transactions or reads private key files. It rejects devnet IDs/RPC, a 1 SOL test graduation target, zero platform/creator revenue, short test windows, and an authority used as the keeper payer.
+- CI now includes web tests in addition to unit/client tests, builds, Rust/SBF and IDL gates.
+
+## Release gates still open
+
+1. **Compile and test the initializer authorization patch.** The current workspace has no Rust/Anchor/Solana toolchain. Run the pinned Codespaces build, inspect SBF diagnostics, sync/check IDL, and test initialization by the correct and unrelated signer on a fresh validator/deployment. Existing initialized config cannot exercise this test. Check the new branch's program CI before release; JavaScript parity checks do not prove Rust compilation or on-chain rejection.
+2. **Bind selected child metadata on-chain.** The frontend checks proposal name, symbol, URI and metadata hash before launch. The program currently binds the selected mint and atomic InitializeV2 proof but does not compare proposal text against InitializeV2 metadata. A custom client can bypass UI checks. Add an on-chain match of the atomic metadata arguments and negative integration tests. Off-chain JSON bytes can only be committed by hash; the program cannot fetch HTTPS. Do not advertise immutable proposal metadata until that gap is resolved.
+3. **Complete mainnet transaction clients.** Root launch, trading, reproduction and mint recovery still enforce devnet. Replace test-only assumptions with explicit reviewed cluster settings, separate mainnet recovery domains, and a manifest graduation target. Verify both curves and CPMM. Changing only environment variables will not enable mainnet and is unsafe.
+4. **Validate Raydium mainnet accounts/layouts.** Mainnet preflight compares canonical SDK program/config IDs, owners, curve type, treasury, full reproduction vesting, LP burn allocation, CPMM creator override and fees. Inspect current accounts and primary Raydium docs before choosing the final configs; current mainnet accounts were not checked without a dedicated RPC/deployment.
+5. **Approve economics.** Devnet has zero platform and creator fees and a 1 SOL target. Select production platform/creator fee rates (millionths), proposal fee and graduation target. Proposed starting draft: 0.5% platform + 0.5% creator, before Raydium's protocol fee; this is not an initialized policy. Keep all migration LP burned under current protocol constraints. Verify the creator's CPMM rights and implement/verify fee claims before promising automatic payouts.
+6. **Deploy production infrastructure.** Dedicated RPC, HTTPS frontend, public durable Blob store, funded separate keeper payer, and optional PostgreSQL indexer. In-process upload burst limits are per instance and per wallet, not a distributed abuse defense; apply deployment-level throttling. Browser RPC credentials are public: scope them by origin and provider limits. The current RPC history volume feed can be incomplete; do not label partial data as complete.
+7. **Complete adversarial integration review.** Multi-wallet/tied votes, paused refunds, repeated settlement/claim, expired candidates, migrated-before-deadline recovery, wrong Raydium accounts, donation handling, 15-child cap and generation-two settlement. Arrange independent review of the final program artifact and authority custody. The initializer fix and this internal review are not an external audit.
+
+## Run preparation checks
+
+```sh
+pnpm sdk:build
+pnpm test
+pnpm test:client
+pnpm test:web
+pnpm typecheck:clients
+pnpm web:build
+pnpm indexer:build
+```
+
+In Codespaces, the pinned Rust/SBF/IDL checks are included in:
+
+```sh
+bash scripts/devnet/build.sh
+```
+
+For public mainnet configuration, copy and populate the manifest after selecting identities/economics. Never put private keys or RPC tokens in the manifest or Git.
+
+```sh
+node scripts/production/preflight.mjs production/manifest.json --offline
+# With MAINNET_RPC_URL and server-only BLOB_READ_WRITE_TOKEN in the environment:
+node scripts/production/preflight.mjs production/manifest.json
+```
+
+Online checks require a deployed/initialized mainnet program and a funded keeper; they are for reviewing that concrete configuration, not authorizing deployment. `graduationTargetLamports` is an approved per-launch client setting, not a value stored in the existing GlobalConfig: preflight validates its range but cannot verify launch clients use it yet. Blob credential presence does not prove the store is public or healthy; run a signed production upload, fetch its immutable image/JSON URLs, and verify hashes.
+
+## Deployment order after release gates pass
+
+Generate a distinct mainnet program identity; synchronize Anchor/source/SDK identities; build and record artifact/IDL hashes; review treasury, authorities and the final manifest. Deploy the reviewed artifact, initialize as upgrade authority, and verify exact config before opening the frontend. Account authorization must be present before deployment, so another signer cannot race configuration initialization.
+
+Run preflight, then a deliberately small end-to-end mainnet launch/trade/child smoke test with the chosen real graduation target. Deploy the keeper separately with only its funded fee payer, compare its public key to the manifest, and start with `--once` dry-run. Enable `--apply` only after the read-only phase identifies the correct deployment. Monitor submitted transactions, payer balance, failures and restart behavior; uncertain submissions require inspection before restarting.
+
+Only enable public mainnet transaction controls after the complete flow and economic settings are verified. Keep upgrade/config authority custody separate from the keeper, and document recovery/pause ownership.

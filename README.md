@@ -48,3 +48,7 @@ node --experimental-strip-types --test tests/unit/*.test.mjs
 4. Complete every step in [`docs/DEVNET.md`](docs/DEVNET.md), including failed and adversarial cases.
 
 The web UI supports root launches, curve and CPMM trading, graduation activation, child proposals, token-weighted voting, refunds, selected-child launches, and lineage inspection. Creators enter token details and upload an image; the app handles JSON creation and hosting. For deployed uploads, configure a public Blob store with the server-only `BLOB_READ_WRITE_TOKEN`; Devnet development uses local storage. See [`docs/DEVNET.md`](docs/DEVNET.md) for setup. A backend keeper can activate graduated roots and settle children automatically. Mainnet launch remains disabled.
+
+## Mainnet preparation
+
+The latest user-tested family completed child selection, launch, migration and activation. Read-only verification confirmed a 10M parent burn, 140M remaining parent reserve and 150M active child reserve. See [the production preparation and release gates](docs/MAINNET.md). Mainnet transactions remain disabled pending the security/program build gates, cluster-aware clients, approved economics and deployment infrastructure.
