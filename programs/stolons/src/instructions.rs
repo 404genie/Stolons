@@ -20,7 +20,7 @@ use crate::{
     math::{root_mass_transfer, validate_family_move},
     raydium::{
         anchor_ix_discriminator, read_launch_pool, validate_platform_config,
-        validate_stolons_launch, validate_vesting_record, verify_cpmm_pool,
+        validate_stolons_launch, validate_vesting_record, verify_cpmm_pool, verify_fee_migration,
         verify_initialize_v2_before_current,
     },
     state::*,
@@ -187,7 +187,7 @@ pub fn register_root_launch(ctx: Context<RegisterRootLaunch>) -> Result<()> {
     let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), config)?;
     validate_stolons_launch(ctx.accounts.pool_state.key(), &pool, config, ctx.accounts.mint.key(), 0)?;
     require!(pool.quote_decimals == ctx.accounts.quote_mint.decimals, StolonsError::InvalidLaunchPool);
-    require_keys_eq!(pool.creator, ctx.accounts.creator.key(), StolonsError::InvalidLaunchPool);
+    require_keys_eq!(pool.creator, launch_fee_creator(config, ctx.accounts.mint.key(), ctx.accounts.creator.key()), StolonsError::InvalidLaunchPool);
     validate_platform_config(
         &ctx.accounts.platform_config.to_account_info(),
         config,
@@ -201,6 +201,7 @@ pub fn register_root_launch(ctx: Context<RegisterRootLaunch>) -> Result<()> {
         ctx.accounts.mint.key(),
         config.quote_mint,
         None,
+        ctx.accounts.creator.key(),
     )?;
     let now = Clock::get()?.unix_timestamp;
     ctx.accounts.family.root_mint = ctx.accounts.mint.key();
@@ -280,6 +281,7 @@ pub fn register_root_migration(ctx: Context<RegisterRootMigration>) -> Result<()
         ctx.accounts.mint.key(),
         ctx.accounts.config.quote_mint,
     )?;
+    verify_fee_migration(&ctx.accounts.cpmm_pool.try_borrow_data()?, ctx.accounts.mint.key(), pool.creator)?;
     ctx.accounts.lineage.cpmm_pool = ctx.accounts.cpmm_pool.key();
     ctx.accounts.lineage.status = LineageStatus::RootQualified;
     emit!(RootMigrated { mint: ctx.accounts.mint.key(), launch_pool: ctx.accounts.pool_state.key(), cpmm_pool: ctx.accounts.cpmm_pool.key() });
@@ -884,7 +886,7 @@ pub fn register_candidate_launch(ctx: Context<RegisterCandidateLaunch>) -> Resul
     let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config)?;
     validate_stolons_launch(ctx.accounts.pool_state.key(), &pool, &ctx.accounts.config, ctx.accounts.child_mint.key(), 0)?;
     require!(pool.quote_decimals == ctx.accounts.quote_mint.decimals, StolonsError::InvalidLaunchPool);
-    require_keys_eq!(pool.creator, ctx.accounts.launcher.key(), StolonsError::InvalidLaunchPool);
+    require_keys_eq!(pool.creator, launch_fee_creator(&ctx.accounts.config, ctx.accounts.child_mint.key(), ctx.accounts.launcher.key()), StolonsError::InvalidLaunchPool);
     validate_platform_config(
         &ctx.accounts.platform_config.to_account_info(),
         &ctx.accounts.config,
@@ -898,6 +900,7 @@ pub fn register_candidate_launch(ctx: Context<RegisterCandidateLaunch>) -> Resul
         ctx.accounts.child_mint.key(),
         ctx.accounts.config.quote_mint,
         Some((&ctx.accounts.proposal.name, &ctx.accounts.proposal.symbol, &ctx.accounts.proposal.metadata_uri)),
+        ctx.accounts.launcher.key(),
     )?;
     create_platform_vesting(
         &ctx.accounts.launchlab_program.to_account_info(),
@@ -1067,6 +1070,7 @@ pub fn register_candidate_migration(ctx: Context<RegisterCandidateMigration>) ->
         ctx.accounts.child_mint.key(),
         ctx.accounts.config.quote_mint,
     )?;
+    verify_fee_migration(&ctx.accounts.cpmm_pool.try_borrow_data()?, ctx.accounts.child_mint.key(), pool.creator)?;
     ctx.accounts.candidate.status = CandidateStatus::Qualified;
     ctx.accounts.candidate.cpmm_pool = ctx.accounts.cpmm_pool.key();
     ctx.accounts.candidate.qualified_at = Clock::get()?.unix_timestamp;
@@ -1444,4 +1448,195 @@ mod initializer_authority_tests {
         assert!(validate_initializer_authority(Some(Pubkey::new_unique()), authority).is_err());
         assert!(validate_initializer_authority(None, authority).is_err());
     }
+}
+
+fn launch_fee_creator(config: &GlobalConfig, mint: Pubkey, creator: Pubkey) -> Pubkey {
+    if config.version >= 2 { Pubkey::find_program_address(&[FEE_AUTHORITY_SEED, mint.as_ref()], &crate::ID).0 } else { creator }
+}
+
+#[derive(Accounts)]
+pub struct EnableFeeSharing<'info> {
+    #[account(mut, seeds = [CONFIG_SEED], bump = config.bump, has_one = authority)]
+    pub config: Account<'info, GlobalConfig>,
+    pub authority: Signer<'info>,
+    /// CHECK: pinned config owner/address, decoded before enabling.
+    #[account(address = config.platform_config, owner = config.launchlab_program)]
+    pub platform_config: UncheckedAccount<'info>,
+}
+pub fn enable_fee_sharing(ctx: Context<EnableFeeSharing>) -> Result<()> {
+    require!(ctx.accounts.config.version == 1, StolonsError::InvalidConfiguration);
+    // The version change rolls back if platform validation fails.
+    ctx.accounts.config.version = 2;
+    validate_platform_config(&ctx.accounts.platform_config.to_account_info(), &ctx.accounts.config, reproduction_authority_address()?.0)
+}
+
+#[derive(Accounts)]
+pub struct CollectSharedCpmmFees<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+    #[account(seeds = [LINEAGE_SEED, mint.key().as_ref()], bump = lineage.bump, has_one = mint)]
+    pub lineage: Box<Account<'info, Lineage>>,
+    pub mint: Box<Account<'info, Mint>>,
+    /// CHECK: immutable lineage creator, never chosen by the caller.
+    #[account(address = lineage.creator)]
+    pub creator: UncheckedAccount<'info>,
+    /// CHECK: configured treasury beneficiary.
+    #[account(address = config.treasury)]
+    pub treasury: UncheckedAccount<'info>,
+    /// CHECK: per-token signing authority; zero-data PDA requires no private key.
+    #[account(mut, seeds = [FEE_AUTHORITY_SEED, mint.key().as_ref()], bump)]
+    pub fee_authority: UncheckedAccount<'info>,
+    #[account(init_if_needed, payer = payer, space = FeeDistribution::SPACE, seeds = [FEE_DISTRIBUTION_SEED, mint.key().as_ref()], bump)]
+    pub distribution: Box<Account<'info, FeeDistribution>>,
+    /// CHECK: registered deterministic CPMM pool checked in handler and by CPMM CPI.
+    #[account(mut, address = lineage.cpmm_pool, owner = config.cpmm_program)]
+    pub pool_state: UncheckedAccount<'info>,
+    /// CHECK: pinned CPMM config; CPMM checks its discriminator/layout.
+    #[account(address = config.cpmm_config, owner = config.cpmm_program)]
+    pub amm_config: UncheckedAccount<'info>,
+    /// CHECK: CPMM canonical vault authority checked by the CPI.
+    #[account(seeds = [b"vault_and_lp_mint_auth_seed"], bump, seeds::program = config.cpmm_program)]
+    pub cpmm_authority: UncheckedAccount<'info>,
+    #[account(mut, token::mint = mint_0)]
+    pub vault_0: Box<Account<'info, TokenAccount>>,
+    #[account(mut, token::mint = mint_1)]
+    pub vault_1: Box<Account<'info, TokenAccount>>,
+    pub mint_0: Box<Account<'info, Mint>>,
+    pub mint_1: Box<Account<'info, Mint>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_0, associated_token::authority = fee_authority)]
+    pub fee_0: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_1, associated_token::authority = fee_authority)]
+    pub fee_1: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_0, associated_token::authority = creator)]
+    pub creator_0: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_1, associated_token::authority = creator)]
+    pub creator_1: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_0, associated_token::authority = treasury)]
+    pub treasury_0: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = mint_1, associated_token::authority = treasury)]
+    pub treasury_1: Box<Account<'info, TokenAccount>>,
+    /// CHECK: optional-existence PDA, canonical address checked by CPMM CPI.
+    #[account(seeds = [b"creator_fee_share", fee_authority.key().as_ref(), amm_config.key().as_ref()], bump, seeds::program = config.cpmm_program)]
+    pub creator_fee_share: UncheckedAccount<'info>,
+    #[account(address = config.cpmm_program, executable)]
+    pub cpmm_program: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+pub fn collect_shared_cpmm_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<()> {
+    require!(!ctx.accounts.config.paused, StolonsError::Paused);
+    require!(ctx.accounts.config.version == 2, StolonsError::InvalidConfiguration);
+    verify_cpmm_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config, ctx.accounts.mint.key(), ctx.accounts.config.quote_mint)?;
+    require!(ctx.accounts.creator.key() != ctx.accounts.fee_authority.key() && ctx.accounts.treasury.key() != ctx.accounts.fee_authority.key(), StolonsError::InvalidConfiguration);
+    let (collected_0, collected_1) = {
+        let data = ctx.accounts.pool_state.try_borrow_data()?;
+        let key_at = |offset: usize| -> Result<Pubkey> {
+            Ok(Pubkey::new_from_array(data.get(offset..offset+32).ok_or(StolonsError::InvalidCpmmPool)?.try_into().map_err(|_| error!(StolonsError::InvalidCpmmPool))?))
+        };
+        require_keys_eq!(key_at(40)?, ctx.accounts.fee_authority.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(72)?, ctx.accounts.vault_0.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(104)?, ctx.accounts.vault_1.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(168)?, ctx.accounts.mint_0.key(), StolonsError::InvalidCpmmPool);
+        require_keys_eq!(key_at(200)?, ctx.accounts.mint_1.key(), StolonsError::InvalidCpmmPool);
+        let amount_at = |offset: usize| -> Result<u64> {
+            Ok(u64::from_le_bytes(data.get(offset..offset+8).ok_or(StolonsError::InvalidCpmmPool)?.try_into().map_err(|_| error!(StolonsError::InvalidCpmmPool))?))
+        };
+        (amount_at(397)?, amount_at(405)?)
+    };
+    let mint = ctx.accounts.mint.key();
+    let bump = [ctx.bumps.fee_authority];
+    let seeds: &[&[u8]] = &[FEE_AUTHORITY_SEED, mint.as_ref(), &bump];
+    if collected_0 > 0 || collected_1 > 0 {
+        // Current Raydium collection ABI: mandatory CreatorFeeShare appended last.
+        let a = &ctx.accounts;
+        let infos = vec![a.fee_authority.to_account_info(), a.cpmm_authority.to_account_info(), a.pool_state.to_account_info(), a.amm_config.to_account_info(), a.vault_0.to_account_info(), a.vault_1.to_account_info(), a.mint_0.to_account_info(), a.mint_1.to_account_info(), a.fee_0.to_account_info(), a.fee_1.to_account_info(), a.token_program.to_account_info(), a.token_program.to_account_info(), a.associated_token_program.to_account_info(), a.system_program.to_account_info(), a.creator_fee_share.to_account_info()];
+        let metas = infos.iter().enumerate().map(|(i, account)| {
+            let writable = matches!(i, 0 | 2 | 4 | 5 | 8 | 9);
+            if writable { AccountMeta::new(account.key(), i == 0) } else { AccountMeta::new_readonly(account.key(), i == 0) }
+        }).collect();
+        let ix = Instruction { program_id: a.cpmm_program.key(), accounts: metas, data: anchor_ix_discriminator(b"global:collect_creator_fee").to_vec() };
+        let mut all_infos = infos; all_infos.push(a.cpmm_program.to_account_info());
+        invoke_signed(&ix, &all_infos, &[seeds])?;
+        ctx.accounts.fee_0.reload()?; ctx.accounts.fee_1.reload()?;
+    }
+    // Include funds collected directly via Raydium's permissionless path. Each
+    // token has its own authority, so that path cannot mix different creators.
+    let a0 = ctx.accounts.fee_0.amount; let a1 = ctx.accounts.fee_1.amount;
+    let d = &mut ctx.accounts.distribution;
+    if d.mint == Pubkey::default() { d.mint = mint; d.pool = ctx.accounts.pool_state.key(); d.bump = ctx.bumps.distribution; }
+    require_keys_eq!(d.mint, mint, StolonsError::InvalidMint);
+    require_keys_eq!(d.pool, ctx.accounts.pool_state.key(), StolonsError::InvalidCpmmPool);
+    let (total0, creator0, treasury0) = crate::math::split_fee_collection(d.collected_0, a0)?;
+    let (total1, creator1, treasury1) = crate::math::split_fee_collection(d.collected_1, a1)?;
+    d.collected_0 = total0; d.collected_1 = total1;
+    let a = &ctx.accounts;
+    for (source, destination, amount) in [(&a.fee_0, &a.creator_0, creator0), (&a.fee_0, &a.treasury_0, treasury0), (&a.fee_1, &a.creator_1, creator1), (&a.fee_1, &a.treasury_1, treasury1)] {
+        if amount > 0 { token::transfer(CpiContext::new_with_signer(a.token_program.to_account_info(), Transfer { from: source.to_account_info(), to: destination.to_account_info(), authority: a.fee_authority.to_account_info() }, &[seeds]), amount)?; }
+    }
+    Ok(())
+}
+
+#[derive(Accounts)]
+pub struct ClaimCurveCreatorFees<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+    #[account(seeds = [LINEAGE_SEED, mint.key().as_ref()], bump = lineage.bump, has_one = mint)]
+    pub lineage: Box<Account<'info, Lineage>>,
+    pub mint: Box<Account<'info, Mint>>,
+    /// CHECK: immutable original creator recorded by registration.
+    #[account(address = lineage.creator)]
+    pub creator: UncheckedAccount<'info>,
+    /// CHECK: canonical per-token creator vault signer.
+    #[account(mut, seeds = [FEE_AUTHORITY_SEED, mint.key().as_ref()], bump)]
+    pub fee_authority: UncheckedAccount<'info>,
+    /// CHECK: pool validated against lineage and canonical LaunchLab config.
+    #[account(address = lineage.launch_pool)]
+    pub pool_state: UncheckedAccount<'info>,
+    /// CHECK: Raydium claim checks authority PDA.
+    #[account(seeds = [b"creator_fee_vault_auth_seed"], bump, seeds::program = config.launchlab_program)]
+    pub creator_vault_authority: UncheckedAccount<'info>,
+    /// CHECK: Raydium claim checks creator-specific vault PDA.
+    #[account(mut, seeds = [fee_authority.key().as_ref(), quote_mint.key().as_ref()], bump, seeds::program = config.launchlab_program, token::mint = quote_mint)]
+    pub creator_fee_vault: Box<Account<'info, TokenAccount>>,
+    #[account(address = config.quote_mint)]
+    pub quote_mint: Box<Account<'info, Mint>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = quote_mint, associated_token::authority = fee_authority)]
+    pub fee_ata: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = payer, associated_token::mint = quote_mint, associated_token::authority = creator)]
+    pub destination: Box<Account<'info, TokenAccount>>,
+    #[account(address = config.launchlab_program, executable)]
+    pub launchlab_program: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+pub fn claim_curve_creator_fees(ctx: Context<ClaimCurveCreatorFees>) -> Result<()> {
+    require!(!ctx.accounts.config.paused, StolonsError::Paused);
+    let pool = read_launch_pool(&ctx.accounts.pool_state.to_account_info(), &ctx.accounts.config)?;
+    require_keys_eq!(pool.creator, ctx.accounts.fee_authority.key(), StolonsError::InvalidLaunchPool);
+    require_keys_eq!(pool.base_mint, ctx.accounts.mint.key(), StolonsError::InvalidLaunchPool);
+    require!(ctx.accounts.creator.key() != ctx.accounts.fee_authority.key(), StolonsError::InvalidConfiguration);
+    if ctx.accounts.creator_fee_vault.amount == 0 { return Ok(()); }
+    let before = ctx.accounts.fee_ata.amount;
+    let a = &ctx.accounts;
+    let infos = vec![a.fee_authority.to_account_info(), a.creator_vault_authority.to_account_info(), a.creator_fee_vault.to_account_info(), a.fee_ata.to_account_info(), a.quote_mint.to_account_info(), a.token_program.to_account_info(), a.system_program.to_account_info(), a.associated_token_program.to_account_info()];
+    let metas = infos.iter().enumerate().map(|(i, account)| if matches!(i, 0 | 2 | 3) { AccountMeta::new(account.key(), i == 0) } else { AccountMeta::new_readonly(account.key(), i == 0) }).collect();
+    let ix = Instruction { program_id: a.launchlab_program.key(), accounts: metas, data: anchor_ix_discriminator(b"global:claim_creator_fee").to_vec() };
+    let mut all_infos = infos; all_infos.push(a.launchlab_program.to_account_info());
+    let mint = a.mint.key(); let bump = [ctx.bumps.fee_authority];
+    let seeds: &[&[u8]] = &[FEE_AUTHORITY_SEED, mint.as_ref(), &bump];
+    invoke_signed(&ix, &all_infos, &[seeds])?;
+    ctx.accounts.fee_ata.reload()?;
+    let received = ctx.accounts.fee_ata.amount.checked_sub(before).ok_or(StolonsError::ArithmeticError)?;
+    if received > 0 {
+        let a = &ctx.accounts;
+        token::transfer(CpiContext::new_with_signer(a.token_program.to_account_info(), Transfer { from: a.fee_ata.to_account_info(), to: a.destination.to_account_info(), authority: a.fee_authority.to_account_info() }, &[seeds]), received)?;
+    }
+    Ok(())
 }

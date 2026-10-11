@@ -29,6 +29,7 @@ test('read-only mainnet inspection checks deployment, config, fees and keeper wi
  const {deriveConfigPda,deriveReproductionAuthorityPda}=await import('../../sdk/dist/index.js');
  const f=fixture(),m=manifest(),program=new PublicKey(m.programId),loader=new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
  const config=Buffer.from(f.accounts.get(deriveConfigPda(f.program).toBase58()).data);
+ config[305]=2;
  const oldKey=offset=>new PublicKey(config.subarray(offset,offset+32)).toBase58();
  const launch=Buffer.from(f.accounts.get(oldKey(136)).data),platform=Buffer.from(f.accounts.get(oldKey(168)).data),cpmm=Buffer.from(f.accounts.get(oldKey(232)).data);
  for(const [field,offset]of [['configAuthority',8],['treasury',40],['launchlabProgram',72],['cpmmProgram',104],['launchlabConfig',136],['platformConfig',168],['cpmmConfig',232]])config.set(new PublicKey(m[field]).toBytes(),offset);

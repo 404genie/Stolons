@@ -86,6 +86,6 @@ test('configuration rejects unrelated accounts, paused state and unknown version
   assert.doesNotThrow(() => decodeLaunchConfig(bytes));
   bytes[304] = 1;
   assert.throws(() => decodeLaunchConfig(bytes), /paused/);
-  bytes[304] = 0; bytes[305] = 2;
+  bytes[304] = 0; bytes[305] = 3;
   assert.throws(() => decodeLaunchConfig(bytes), /version/);
 });

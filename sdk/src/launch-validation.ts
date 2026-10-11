@@ -60,7 +60,7 @@ export function decodeLaunchConfig(data: Uint8Array) {
   const bytes = Buffer.from(data);
   if (bytes.length < 307 || !bytes.subarray(0, 8).equals(Buffer.from([149, 8, 156, 202, 160, 252, 176, 217]))) throw new Error("Invalid Stolons configuration account.");
   if (bytes[304] !== 0) throw new Error("Stolons is paused.");
-  if (bytes[305] !== 1) throw new Error("Unsupported Stolons configuration version.");
+  if (![1,2].includes(bytes[305]!)) throw new Error("Unsupported Stolons configuration version.");
   const key = (offset: number) => new PublicKey(bytes.subarray(offset, offset + 32));
-  return { launchpad: key(72), launchConfig: key(136), platform: key(168), quote: key(200) };
+  return { version:bytes[305]!, launchpad: key(72), launchConfig: key(136), platform: key(168), quote: key(200) };
 }

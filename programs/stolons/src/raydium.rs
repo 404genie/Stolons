@@ -105,6 +105,9 @@ pub fn validate_platform_config(account: &AccountInfo, config: &GlobalConfig, au
     require_keys_eq!(read_key(&data, PLATFORM_CPMM_CONFIG_OFFSET)?, config.cpmm_config, StolonsError::InvalidConfiguration);
     require_keys_eq!(read_key(&data, PLATFORM_VESTING_WALLET_OFFSET)?, authority, StolonsError::InvalidConfiguration);
     require!(read_u64(&data, PLATFORM_VESTING_SCALE_OFFSET)? == SCALE_DENOMINATOR, StolonsError::InvalidConfiguration);
+    if config.version >= 2 {
+        require_keys_eq!(read_key(&data, PLATFORM_CP_CREATOR_OFFSET)?, Pubkey::default(), StolonsError::InvalidConfiguration);
+    }
     Ok(())
 }
 
@@ -132,6 +135,7 @@ pub fn verify_initialize_v2_before_current(
     base_mint: Pubkey,
     quote_mint: Pubkey,
     metadata: Option<(&str, &str, &str)>,
+    launch_payer: Pubkey,
 ) -> Result<()> {
     use anchor_lang::solana_program::sysvar::instructions::{load_current_index_checked, load_instruction_at_checked};
     let current = load_current_index_checked(instruction_sysvar)? as usize;
@@ -143,6 +147,8 @@ pub fn verify_initialize_v2_before_current(
         }
         // InitializeV2's pinned account order: platform config 3, pool state 5, base mint 6, quote mint 7.
         if instruction.accounts.len() >= 8
+            && instruction.accounts[0].pubkey == launch_payer
+            && instruction.accounts[0].is_signer
             && instruction.accounts[3].pubkey == platform_config
             && instruction.accounts[5].pubkey == pool
             && instruction.accounts[6].pubkey == base_mint
@@ -232,5 +238,31 @@ mod metadata_proof_tests {
         assert!(verify_initialize_metadata(&malformed, "Child", "CH", "https://example.com/c.json").is_err());
         malformed = data; malformed[0] ^= 1;
         assert!(verify_initialize_metadata(&malformed, "Child", "CH", "https://example.com/c.json").is_err());
+    }
+}
+
+/// Migration must preserve each v2 launch's per-token fee ownership.
+pub fn verify_fee_migration(data: &[u8], mint: Pubkey, launch_creator: Pubkey) -> Result<()> {
+    let authority = Pubkey::find_program_address(&[FEE_AUTHORITY_SEED, mint.as_ref()], &crate::ID).0;
+    if launch_creator == authority {
+        require_keys_eq!(read_key(data, 40)?, authority, StolonsError::InvalidCpmmPool);
+        require!(data.get(390) == Some(&1), StolonsError::InvalidCpmmPool);
+    }
+    Ok(())
+}
+#[cfg(test)]
+mod fee_migration_tests {
+    use super::*;
+    #[test]
+    fn sharing_migration_rejects_redirected_or_disabled_creator_fees() {
+        let mint = Pubkey::new_unique();
+        let authority = Pubkey::find_program_address(&[FEE_AUTHORITY_SEED, mint.as_ref()], &crate::ID).0;
+        let mut data = vec![0u8; 413]; data[40..72].copy_from_slice(authority.as_ref()); data[390] = 1;
+        assert!(verify_fee_migration(&data, mint, authority).is_ok());
+        data[390] = 0; assert!(verify_fee_migration(&data, mint, authority).is_err());
+        data[390] = 1; data[40..72].copy_from_slice(Pubkey::new_unique().as_ref());
+        assert!(verify_fee_migration(&data, mint, authority).is_err());
+        assert!(verify_fee_migration(&[], mint, authority).is_err());
+        assert!(verify_fee_migration(&data, mint, Pubkey::new_unique()).is_ok());
     }
 }

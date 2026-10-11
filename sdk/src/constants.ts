@@ -19,6 +19,8 @@ export const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZb
 export const INSTRUCTIONS_SYSVAR_ID = new PublicKey("Sysvar1nstructions1111111111111111111111111");
 
 export const SEEDS = {
+  feeAuthority: "fee_authority",
+  feeDistribution: "fee_distribution",
   config: "config",
   family: "family",
   lineage: "lineage",

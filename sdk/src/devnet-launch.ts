@@ -5,7 +5,7 @@ import {assertCluster,raydiumPrograms,launchTarget,type SolanaCluster} from "./n
 import { sendDevnetTrade,TradeSubmittedError } from "./devnet-trade.js";
 import { buildInstruction } from "./builders.js";
 import { appendAfterInitializeV2 } from "./raydium.js";
-import { deriveConfigPda, deriveFamilyPda, deriveLineagePda, deriveReproductionAuthorityPda, deriveVaultAuthorityPda, deriveReproductionVaultPda, deriveCandidatePda } from "./pda.js";
+import { deriveFeeAuthorityPda, deriveConfigPda, deriveFamilyPda, deriveLineagePda, deriveReproductionAuthorityPda, deriveVaultAuthorityPda, deriveReproductionVaultPda, deriveCandidatePda } from "./pda.js";
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, INSTRUCTIONS_SYSVAR_ID } from "./constants.js";
 import { decodeLaunchConfig, validateLaunchDetails } from "./launch-validation.js";
 
@@ -33,6 +33,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   const configAccount = await connection.getAccountInfo(config, "confirmed");
   if (!configAccount?.owner.equals(programId)) throw new Error("Stolons configuration is missing.");
   const c = decodeLaunchConfig(configAccount.data);
+  if(cluster==='mainnet-beta'&&c.version!==2)throw Error('Mainnet requires fee-sharing config version 2.');
   if (!c.launchpad.equals(programs.LAUNCHPAD_PROGRAM) || !c.launchConfig.equals(programs.LAUNCHPAD_CONFIG) || !c.quote.equals(new PublicKey("So11111111111111111111111111111111111111112"))) throw new Error("Configuration does not match the supported Raydium launch for this cluster.");
   const [launchAccount, mintAccount, lineageAccount] = await connection.getMultipleAccountsInfo([c.launchConfig, mint, deriveLineagePda(programId, mint)], "confirmed");
   if (!launchAccount?.owner.equals(c.launchpad)) throw new Error("Raydium launch configuration is missing.");
@@ -45,7 +46,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   const bn = (value: bigint) => new BN(value.toString());
   const supply = bn(1_000_000_000_000_000n), locked = bn(150_000_000_000_000n), sell = bn(800_000_000_000_000n), raising = bn(target);
   Curve.checkParam({ supply, totalFundRaising: raising, totalSell: sell, totalLockedAmount: locked, decimals: 6, config: launch, migrateType: "cpmm" });
-  const init = initializeV2(c.launchpad, creator, creator, c.launchConfig, c.platform, getPdaLaunchpadAuth(c.launchpad).publicKey, pool, mint, c.quote,
+  const init = initializeV2(c.launchpad, creator, c.version>=2?deriveFeeAuthorityPda(programId,mint):creator, c.launchConfig, c.platform, getPdaLaunchpadAuth(c.launchpad).publicKey, pool, mint, c.quote,
     getPdaLaunchpadVaultId(c.launchpad, pool, mint).publicKey, getPdaLaunchpadVaultId(c.launchpad, pool, c.quote).publicKey,
     getPdaMetadataKey(mint).publicKey, TOKEN_PROGRAM_ID, 6, input.name, input.symbol, input.metadataUri,
     { type: "ConstantCurve", totalSellA: sell, migrateType: "cpmm", supply, totalFundRaisingB: raising }, locked, bn(0n), bn(0n), CpmmCreatorFeeOn.OnlyTokenB);

@@ -15,7 +15,8 @@
     "./devnet-reproduction": "./dist/devnet-reproduction.js",
     "./child-mint": "./dist/child-mint.js",
     "./verify-family": "./dist/verify-family.js",
-    "./network": "./dist/network.js"
+    "./network": "./dist/network.js",
+    "./fees": "./dist/fees.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

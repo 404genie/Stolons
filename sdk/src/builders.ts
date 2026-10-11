@@ -11,6 +11,15 @@ import type { InitializeConfigArgs, SubmitProposalArgs } from "./types.js";
 type AccountMetaSpec = readonly [string, signer: boolean, writable: boolean];
 
 export const ACCOUNT_SCHEMAS = {
+  enable_fee_sharing: [
+    ["config", false, true], ["authority", true, false], ["platform_config", false, false]
+  ],
+  collect_shared_cpmm_fees: [
+    ["payer", true, true], ["config", false, false], ["lineage", false, false], ["mint", false, false], ["creator", false, false], ["treasury", false, false], ["fee_authority", false, true], ["distribution", false, true], ["pool_state", false, true], ["amm_config", false, false], ["cpmm_authority", false, false], ["vault_0", false, true], ["vault_1", false, true], ["mint_0", false, false], ["mint_1", false, false], ["fee_0", false, true], ["fee_1", false, true], ["creator_0", false, true], ["creator_1", false, true], ["treasury_0", false, true], ["treasury_1", false, true], ["creator_fee_share", false, false], ["cpmm_program", false, false], ["token_program", false, false], ["associated_token_program", false, false], ["system_program", false, false]
+  ],
+  claim_curve_creator_fees: [
+    ["payer", true, true], ["config", false, false], ["lineage", false, false], ["mint", false, false], ["creator", false, false], ["fee_authority", false, true], ["pool_state", false, false], ["creator_vault_authority", false, false], ["creator_fee_vault", false, true], ["quote_mint", false, false], ["fee_ata", false, true], ["destination", false, true], ["launchlab_program", false, false], ["token_program", false, false], ["associated_token_program", false, false], ["system_program", false, false]
+  ],
   initialize_config: [
     ["config", false, true], ["authority", true, true], ["launchlab_program", false, false],
     ["cpmm_program", false, false], ["launchlab_config", false, false], ["platform_config", false, false],
@@ -110,6 +119,9 @@ export interface InstructionArgs {
 export const SUPPORTED_INSTRUCTIONS: readonly InstructionName[] = Object.freeze(Object.keys(ACCOUNT_SCHEMAS) as InstructionName[]);
 
 const DISCRIMINATORS: Record<InstructionName, readonly number[]> = {
+  enable_fee_sharing: [81, 199, 226, 220, 148, 53, 52, 176],
+  collect_shared_cpmm_fees: [130, 235, 110, 152, 247, 182, 118, 109],
+  claim_curve_creator_fees: [164, 141, 203, 75, 39, 127, 125, 204],
   initialize_config: [208, 127, 21, 1, 194, 190, 196, 70],
   set_paused: [91, 60, 125, 192, 176, 225, 166, 218],
   register_root_launch: [237, 154, 243, 131, 233, 145, 255, 14],

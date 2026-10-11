@@ -16,6 +16,9 @@ declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 pub mod stolons {
     use super::*;
 
+    pub fn enable_fee_sharing(ctx: Context<EnableFeeSharing>) -> Result<()> { instructions::enable_fee_sharing(ctx) }
+    pub fn collect_shared_cpmm_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<()> { instructions::collect_shared_cpmm_fees(ctx) }
+    pub fn claim_curve_creator_fees(ctx: Context<ClaimCurveCreatorFees>) -> Result<()> { instructions::claim_curve_creator_fees(ctx) }
     pub fn initialize_config(ctx: Context<InitializeConfig>, args: InitializeConfigArgs) -> Result<()> {
         instructions::initialize_config(ctx, args)
     }

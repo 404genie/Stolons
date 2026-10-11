@@ -71,3 +71,28 @@ mod tests {
     }
 }
 
+
+/// Cumulative 50/50 split: creator gets the one-atom remainder, without repeated dust bias.
+pub fn split_fee_collection(previous: u128, amount: u64) -> Result<(u128, u64, u64)> {
+    let total = previous.checked_add(amount as u128).ok_or(StolonsError::ArithmeticError)?;
+    let creator_before = previous / 2 + previous % 2;
+    let creator_after = total / 2 + total % 2;
+    let creator = u64::try_from(creator_after - creator_before).map_err(|_| error!(StolonsError::ArithmeticError))?;
+    Ok((total, creator, amount.checked_sub(creator).ok_or(StolonsError::ArithmeticError)?))
+}
+#[cfg(test)]
+mod fee_tests {
+    use super::*;
+    #[test]
+    fn split_conserves_and_has_no_repeated_dust_bias() {
+        let (mut total, mut creator, mut treasury) = (0u128, 0u128, 0u128);
+        for amount in [1, 1, 1, 1, 3, 0, u64::MAX, 37] {
+            let (next, c, t) = split_fee_collection(total, amount).unwrap();
+            assert_eq!(c as u128 + t as u128, amount as u128);
+            total = next; creator += c as u128; treasury += t as u128;
+            assert_eq!(creator, total / 2 + total % 2);
+            assert_eq!(creator + treasury, total);
+        }
+        assert!(split_fee_collection(u128::MAX, 1).is_err());
+    }
+}

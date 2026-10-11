@@ -89,3 +89,6 @@ export function deriveTokenAccounts(programId: PublicKey, mint: PublicKey): Pick
     vaultAuthority: deriveVaultAuthorityPda(programId, mint)
   };
 }
+
+export function deriveFeeAuthorityPda(programId:PublicKey,mint:PublicKey):PublicKey { return findPda(programId,seed(SEEDS.feeAuthority),mint.toBytes()); }
+export function deriveFeeDistributionPda(programId:PublicKey,mint:PublicKey):PublicKey { return findPda(programId,seed(SEEDS.feeDistribution),mint.toBytes()); }
