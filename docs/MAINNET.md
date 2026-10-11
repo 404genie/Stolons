@@ -59,7 +59,7 @@ node scripts/production/preflight.mjs production/manifest.json --offline
 node scripts/production/preflight.mjs production/manifest.json
 ```
 
-Online checks require a deployed/initialized mainnet program and a funded keeper; they are for reviewing that concrete configuration, not authorizing deployment. `graduationTargetLamports` is an approved per-launch client setting, not a value stored in the existing GlobalConfig: preflight validates its range; the launch clients use the same explicit target, but each deployed frontend configuration still needs verification. Blob credential presence does not prove the store is public or healthy; run a signed production upload, fetch its immutable image/JSON URLs, and verify hashes.
+Online checks require a deployed/initialized mainnet program and a funded keeper; they are for reviewing that concrete configuration, not authorizing deployment. `graduationTargetLamports` must equal the immutable 85 SOL mainnet policy. The program reads Raydium PoolState.totalFundRaisingB and enforces that exact amount for root/child registration and lifecycle validation; SDK, frontend and preflight reject lower or higher mainnet targets. The value is a program constant rather than a mutable GlobalConfig field. Blob credential presence does not prove the store is public or healthy; run a signed production upload, fetch its immutable image/JSON URLs, and verify hashes.
 
 ## Deployment order after release gates pass
 
@@ -131,3 +131,13 @@ node scripts/production/prepare-release.mjs
 ```
 
 It writes `target/mainnet/release-review.json`, reads no private keys, sends no transactions and leaves the local manifest intact. Derived addresses are planned identities, not proof of initialized accounts. The lookup table and complete initialized configuration remain pending.
+
+## Audit corrections — pending new artifact
+
+The reviewed mainnet policy now enforces 85 SOL on-chain using the pinned PoolState fundraising field at byte 69. Canonical devnet keeps its 1 SOL policy. An on-time positive vesting timestamp protects both status 1 and status 2 candidates against expiry. Raydium documentation currently conflicts about whether this timestamp is stamped at fundraising completion or migration; a narrow source/transaction trace verification is still required before release. Status 1 with a zero timestamp remains unresolved and is not claimed fixed.
+
+New rounds snapshot a winning-support quorum of ceil(parent supply / 1000), corresponding to 0.1%. A late change of leading proposal extends voting until five minutes after that vote, with an absolute cap one hour beyond the original deadline. Same-leader increases do not extend voting. Proposals on the version-3 profile escrow 0.05 SOL in their candidate accounts, separately from rent and the proposal fee. After finalization, losers can reclaim the bond. Winners reclaim it only after successful child settlement; expired/orphaned winners forfeit it to treasury. Bond settlement is permissionless and binds recipients to stored proposer and configured treasury. Repeat settlement is rejected.
+
+`enable_fee_sharing` activates version 3 on a fresh configuration. Epoch and Candidate layouts have appended fields; do not upgrade an existing devnet instance with live accounts without an explicit account migration. Existing devnet workers remain pinned and are not deployed from these changes. SDK decoders retain read compatibility with legacy account layouts, but that is not an on-chain migration.
+
+All earlier artifact hashes are superseded for deployment by these Rust changes. A fresh SBF/IDL build, focused runtime review of the new governance instructions and timestamp verification remain pending. Hosting deployment holds remain in place.

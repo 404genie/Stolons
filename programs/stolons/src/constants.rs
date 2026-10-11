@@ -14,6 +14,9 @@ pub const REPRODUCTION_AUTHORITY_SEED: &[u8] = b"reproduction_authority";
 
 pub const TOKEN_DECIMALS: u8 = 6;
 pub const GENESIS_SUPPLY: u64 = 1_000_000_000_000_000;
+pub const MAINNET_GRADUATION_TARGET: u64 = 85_000_000_000;
+pub const MAINNET_LAUNCHLAB_PROGRAM: anchor_lang::prelude::Pubkey = anchor_lang::prelude::Pubkey::new_from_array([5,4,59,149,77,202,38,225,239,145,181,44,79,143,137,175,138,111,90,200,198,33,86,241,113,207,15,33,172,81,201,34]);
+pub const DEVNET_LAUNCHLAB_PROGRAM: anchor_lang::prelude::Pubkey = anchor_lang::prelude::Pubkey::new_from_array([184,152,150,224,240,34,130,1,214,99,3,62,13,158,154,49,59,66,155,31,74,119,125,124,117,149,18,122,168,166,183,113]);
 pub const CURVE_ALLOCATION: u64 = 700_000_000_000_000;
 pub const MIGRATION_ALLOCATION: u64 = 150_000_000_000_000;
 // Total market allocation also supports settlement of earlier registered launches.
@@ -40,6 +43,7 @@ pub const LL_BASE_DECIMALS_OFFSET: usize = 18;
 pub const LL_QUOTE_DECIMALS_OFFSET: usize = 19;
 pub const LL_MIGRATE_TYPE_OFFSET: usize = 20;
 pub const LL_SUPPLY_OFFSET: usize = 21;
+pub const LL_FUNDRAISING_TARGET_OFFSET: usize = 69;
 pub const LL_TOTAL_SELL_OFFSET: usize = 29;
 pub const LL_LOCKED_AMOUNT_OFFSET: usize = 101;
 pub const LL_CONFIG_OFFSET: usize = 141;
@@ -78,3 +82,7 @@ pub const FEE_DISTRIBUTION_SEED: &[u8] = b"fee_distribution";
 pub const PLATFORM_CP_CREATOR_OFFSET: usize = 800;
 
 pub const CREATOR_ESCROW_SEED: &[u8] = b"creator_escrow";
+
+pub const PROPOSER_BOND_LAMPORTS: u64 = 50_000_000;
+pub const VOTE_EXTENSION_SECONDS: i64 = 300;
+pub const MAX_VOTE_EXTENSION_SECONDS: i64 = 3600;

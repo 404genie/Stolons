@@ -26,7 +26,7 @@ Prepared 2026-10-11. These settings are candidates for initialization, not evide
 
 ## Revenue implementation and verification gate
 
-Fee-sharing version 2 records a per-token PDA (`["fee_authority", mint]`) as the Raydium creator, while lineage retains the user's wallet as the original creator. A signed `enable_fee_sharing` action changes config version 1 to 2 for future launches. Older tokens retain their original Raydium creator and are rejected by the new claim builders rather than having their fees redirected.
+Fee-sharing version 2 records a per-token PDA (`["fee_authority", mint]`) as the Raydium creator, while lineage retains the user's wallet as the original creator. A signed `enable_fee_sharing` action changes a fresh config from version 1 to version 3 for future launches. Older tokens retain their original Raydium creator and are rejected by the new claim builders rather than having their fees redirected.
 
 The curve claim signs as the PDA, claims to its canonical quote ATA, and forwards only the fresh balance increase to the original creator. Existing CPMM receipts in that ATA remain untouched. The treasury-only SDK claim sweeps the aggregated platform curve vault into treasury's canonical quote ATA; the treasury signs, not the keeper.
 
@@ -40,7 +40,7 @@ Code and SDK fixtures are not proof of deployed behavior. Rust/SBF compilation, 
 
 `production/manifest.example.json` contains the candidate numeric settings and the API's index-zero CPMM address. Deployment program, authorities, treasury, keeper, platform and lookup table are deliberately unset. Do not generate or publish signing keys in this file. Use a distinct mainnet program identity and a separate funded keeper payer.
 
-Prepare frontend settings only after those identities are chosen. `prepare-environment.mjs` keeps transactions disabled. Install a dedicated HTTPS browser RPC scoped by origin, a server RPC, public durable Blob storage, and the keeper secret as separate deployment settings. Run the read-only mainnet preflight; it verifies fee rates and the full 70/15/15 allocation with the live curve limits. Its report requires config version 2 and reports that shared-fee source exists but requires live verification; public launch remains unapproved.
+Prepare frontend settings only after those identities are chosen. `prepare-environment.mjs` keeps transactions disabled. Install a dedicated HTTPS browser RPC scoped by origin, a server RPC, public durable Blob storage, and the keeper secret as separate deployment settings. Run the read-only mainnet preflight; it verifies fee rates and the full 70/15/15 allocation with the live curve limits. Its report requires config version 3 and reports that shared-fee source exists but requires live verification; public launch remains unapproved.
 
 ## Sources checked
 
@@ -49,3 +49,5 @@ Prepare frontend settings only after those identities are chosen. `prepare-envir
 - Raydium creator protocol share and collection: https://github.com/raydium-io/raydium-docs-v1/blob/main/products/cpmm/fees.mdx
 
 Rates are mutable and API output does not prove deployed account state. The pinned SDK lacks named decoding for the newer creator-fee-share field. Collection passes its mandatory PDA explicitly and delegates protocol-share settlement to Raydium; the source ABI was checked against the current primary Raydium repository, but deployed ABI verification remains required.
+
+Audited governance profile: 0.1% snapshotted winning-support quorum, a 0.05 SOL proposer bond in addition to the proposal fee, and a capped late-leader-change extension. Losing proposals and successfully settled winners receive refunds; expired or orphaned winners forfeit the bond to treasury. See MAINNET.md.

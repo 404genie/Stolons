@@ -10,6 +10,7 @@ pub struct LaunchPoolView {
     pub migrate_type: u8,
     pub supply: u64,
     pub total_sell: u64,
+    pub fundraising_target: u64,
     pub locked: u64,
     pub cliff_period: u64,
     pub unlock_period: u64,
@@ -52,6 +53,7 @@ pub fn read_launch_pool(account: &AccountInfo, config: &GlobalConfig) -> Result<
         migrate_type: bytes(&data, LL_MIGRATE_TYPE_OFFSET, 1)?[0],
         supply: read_u64(&data, LL_SUPPLY_OFFSET)?,
         total_sell: read_u64(&data, LL_TOTAL_SELL_OFFSET)?,
+        fundraising_target: read_u64(&data, LL_FUNDRAISING_TARGET_OFFSET)?,
         locked: read_u64(&data, LL_LOCKED_AMOUNT_OFFSET)?,
         cliff_period: read_u64(&data, LL_VESTING_CLIFF_OFFSET)?,
         unlock_period: read_u64(&data, LL_VESTING_UNLOCK_OFFSET)?,
@@ -75,6 +77,8 @@ pub fn validate_stolons_launch(
     require!(pool.status == required_status, StolonsError::InvalidLifecycleState);
     require!(pool.migrate_type == 1, StolonsError::InvalidLaunchPool);
     require!(pool.supply == GENESIS_SUPPLY, StolonsError::InvalidAllocation);
+    validate_fundraising_target(pool.fundraising_target, config.launchlab_program)?;
+    if config.launchlab_program == MAINNET_LAUNCHLAB_PROGRAM { require!(config.version >= 3, StolonsError::InvalidConfiguration); }
     require!(pool.locked == REPRODUCTION_RESERVE, StolonsError::InvalidAllocation);
     // The reserve must be claimable in full immediately after graduation.
     require!(pool.cliff_period == 0 && pool.unlock_period == 0, StolonsError::InvalidAllocation);
@@ -283,5 +287,70 @@ mod allocation_tests {
         for amount in [0, 699_999_999_999_999, 800_000_000_000_000, MARKET_ALLOCATION] {
             assert!(validate_new_curve_allocation(amount).is_err());
         }
+    }
+}
+
+/// Canonical mainnet launches cannot weaken the graduation qualification target.
+pub fn validate_fundraising_target(target: u64, launchlab: Pubkey) -> Result<()> {
+    let expected = if launchlab == MAINNET_LAUNCHLAB_PROGRAM { MAINNET_GRADUATION_TARGET }
+        else if launchlab == DEVNET_LAUNCHLAB_PROGRAM { 1_000_000_000 }
+        else { return err!(StolonsError::InvalidLaunchPool); };
+    require!(target == expected, StolonsError::InvalidAllocation);
+    Ok(())
+}
+
+/// An on-time fundraising timestamp protects pending migration as well as trading.
+pub fn protected_candidate(status: u8, start_time: u64, deadline: i64) -> bool {
+    (status == 1 || status == 2) && start_time > 0 && deadline >= 0 && start_time <= deadline as u64
+}
+
+#[cfg(test)]
+mod audit_regressions {
+    use super::*;
+    #[test]
+    fn fundraising_policy_rejects_custom_lower_mainnet_targets() {
+        assert!(validate_fundraising_target(MAINNET_GRADUATION_TARGET, MAINNET_LAUNCHLAB_PROGRAM).is_ok());
+        for amount in [0, 1_000_000_000, 24_000_000_000, 84_999_999_999, 85_000_000_001] {
+            assert!(validate_fundraising_target(amount, MAINNET_LAUNCHLAB_PROGRAM).is_err());
+        }
+        assert!(validate_fundraising_target(1_000_000_000, DEVNET_LAUNCHLAB_PROGRAM).is_ok());
+        assert!(validate_fundraising_target(MAINNET_GRADUATION_TARGET, Pubkey::new_unique()).is_err());
+    }
+    #[test]
+    fn root_and_child_registration_validate_the_pool_fundraising_field() {
+        let config = GlobalConfig {
+            authority: Pubkey::new_unique(), treasury: Pubkey::new_unique(),
+            launchlab_program: MAINNET_LAUNCHLAB_PROGRAM, cpmm_program: Pubkey::new_unique(),
+            launchlab_config: Pubkey::new_unique(), platform_config: Pubkey::new_unique(),
+            quote_mint: Pubkey::new_unique(), cpmm_config: Pubkey::new_unique(),
+            proposal_window: 86400, voting_window: 86400, candidate_launch_window: 86400,
+            candidate_migration_window: 604800, proposal_fee_lamports: 1000000,
+            paused: false, version: 3, bump: 0,
+        };
+        for mint in [Pubkey::new_unique(), Pubkey::new_unique()] {
+            let pool_key = Pubkey::find_program_address(&[LAUNCHLAB_POOL_SEED, mint.as_ref(), config.quote_mint.as_ref()], &config.launchlab_program).0;
+            let mut pool = LaunchPoolView {
+                status: 0, base_decimals: TOKEN_DECIMALS, quote_decimals: 9, migrate_type: 1,
+                supply: GENESIS_SUPPLY, total_sell: CURVE_ALLOCATION, fundraising_target: MAINNET_GRADUATION_TARGET,
+                locked: REPRODUCTION_RESERVE, cliff_period: 0, unlock_period: 0, vesting_start_time: 0,
+                config: config.launchlab_config, platform: config.platform_config, base_mint: mint,
+                quote_mint: config.quote_mint, base_vault: Pubkey::new_unique(), creator: Pubkey::new_unique(),
+            };
+            assert!(validate_stolons_launch(pool_key, &pool, &config, mint, 0).is_ok());
+            pool.fundraising_target = 24_000_000_000;
+            assert!(validate_stolons_launch(pool_key, &pool, &config, mint, 0).is_err());
+        }
+    }
+    #[test]
+    fn pending_and_migrated_on_time_candidates_are_protected() {
+        for status in [1, 2] {
+            assert!(protected_candidate(status, 99, 100));
+            assert!(protected_candidate(status, 100, 100));
+            assert!(!protected_candidate(status, 101, 100));
+            assert!(!protected_candidate(status, 0, 100));
+            assert!(!protected_candidate(status, 1, -1));
+        }
+        assert!(!protected_candidate(0, 99, 100));
+        assert!(!protected_candidate(3, 99, 100));
     }
 }

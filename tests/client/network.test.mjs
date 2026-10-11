@@ -16,7 +16,7 @@ test('network selection rejects unsupported clusters and mismatched RPCs',async(
 test('mainnet fundraising requires a reviewed target and devnet retains its default',()=>{
  assert.equal(launchTarget('devnet'),1000000000n);
  assert.equal(launchTarget('mainnet-beta',85000000000n),85000000000n);
- for(const target of [undefined,0n,1000000000n,18446744073709551616n])assert.throws(()=>launchTarget('mainnet-beta',target));
+ for(const target of [undefined,0n,1000000000n,24000000000n,85000000001n,18446744073709551616n])assert.throws(()=>launchTarget('mainnet-beta',target));
 });
 test('child mint recovery retains devnet keys and separates mainnet recovery',async()=>{
  const [program,epoch,wallet]=Array.from({length:3},()=>Keypair.generate());

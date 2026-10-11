@@ -44,6 +44,9 @@ pub mod stolons {
     pub fn submit_proposal(ctx: Context<SubmitProposal>, args: SubmitProposalArgs) -> Result<()> {
         instructions::submit_proposal(ctx, args)
     }
+    pub fn settle_proposal_bond(ctx: Context<SettleProposalBond>) -> Result<()> {
+        instructions::settle_proposal_bond(ctx)
+    }
     pub fn cast_vote(ctx: Context<CastVote>, amount: u64) -> Result<()> {
         instructions::cast_vote(ctx, amount)
     }

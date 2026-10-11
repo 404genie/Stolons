@@ -20,7 +20,7 @@ use crate::{
     math::{root_mass_transfer, validate_family_move},
     raydium::{
         anchor_ix_discriminator, read_launch_pool, validate_platform_config,
-        validate_stolons_launch, validate_new_curve_allocation, validate_vesting_record, verify_cpmm_pool, verify_fee_migration,
+        validate_stolons_launch, protected_candidate, validate_new_curve_allocation, validate_vesting_record, verify_cpmm_pool, verify_fee_migration,
         verify_initialize_v2_before_current,
     },
     state::*,
@@ -472,6 +472,8 @@ pub fn open_epoch(ctx: Context<OpenEpoch>, epoch_id: u64) -> Result<()> {
     epoch.winning_proposal_id = u8::MAX;
     epoch.status = EpochStatus::Open;
     epoch.bump = ctx.bumps.epoch;
+    epoch.winning_quorum = voting_quorum(ctx.accounts.parent_mint.supply);
+    epoch.max_vote_end = vote_end.checked_add(MAX_VOTE_EXTENSION_SECONDS).ok_or(StolonsError::ArithmeticError)?;
     ctx.accounts.parent.active_epoch = epoch.key();
     ctx.accounts.parent.next_epoch_id = epoch_id.checked_add(1).ok_or(StolonsError::ArithmeticError)?;
     emit!(EpochOpened {
@@ -554,6 +556,11 @@ pub fn submit_proposal(ctx: Context<SubmitProposal>, args: SubmitProposalArgs) -
         ],
     )?;
 
+    let bond = if ctx.accounts.config.version >= 3 { PROPOSER_BOND_LAMPORTS } else { 0 };
+    if bond > 0 {
+        invoke(&system_instruction::transfer(&ctx.accounts.proposer.key(), &ctx.accounts.candidate.key(), bond),
+            &[ctx.accounts.proposer.to_account_info(), ctx.accounts.candidate.to_account_info(), ctx.accounts.system_program.to_account_info()])?;
+    }
     let proposal = &mut ctx.accounts.proposal;
     proposal.epoch = ctx.accounts.epoch.key();
     proposal.proposer = ctx.accounts.proposer.key();
@@ -583,6 +590,8 @@ pub fn submit_proposal(ctx: Context<SubmitProposal>, args: SubmitProposalArgs) -
     candidate.cpmm_pool = Pubkey::default();
     candidate.reserve_claimed = false;
     candidate.settled = false;
+    candidate.bond_lamports = bond;
+    candidate.bond_settled = false;
     candidate.bump = ctx.bumps.candidate;
 
     ctx.accounts.proposed_mint.child_mint = args.child_mint;
@@ -660,8 +669,10 @@ pub fn cast_vote(ctx: Context<CastVote>, amount: u64) -> Result<()> {
     if next_support > epoch.highest_support
         || (next_support == epoch.highest_support && ctx.accounts.proposal.proposal_id < epoch.winning_proposal_id)
     {
+        let leader_changed = epoch.winning_proposal_id != ctx.accounts.proposal.proposal_id;
         epoch.highest_support = next_support;
         epoch.winning_proposal_id = ctx.accounts.proposal.proposal_id;
+        epoch.vote_end = extended_vote_end(epoch.vote_end, epoch.max_vote_end, now, leader_changed)?;
     }
     let receipt = &mut ctx.accounts.receipt;
     receipt.voter = ctx.accounts.voter.key();
@@ -700,7 +711,7 @@ pub fn finalize_epoch(ctx: Context<FinalizeEpoch>) -> Result<()> {
     let now = Clock::get()?.unix_timestamp;
     require!(ctx.accounts.epoch.status == EpochStatus::Open, StolonsError::InvalidEpochPhase);
     require!(now >= ctx.accounts.epoch.vote_end, StolonsError::InvalidEpochPhase);
-    require!(ctx.accounts.epoch.highest_support > 0, StolonsError::NoWinningSupport);
+    require!(ctx.accounts.epoch.highest_support >= ctx.accounts.epoch.winning_quorum.max(1), StolonsError::NoWinningSupport);
     require!(ctx.accounts.parent.active_epoch == ctx.accounts.epoch.key(), StolonsError::InvalidEpochPhase);
     require!(ctx.accounts.parent.active_candidate == Pubkey::default(), StolonsError::InvalidLifecycleState);
     require!(ctx.accounts.proposal.epoch == ctx.accounts.epoch.key(), StolonsError::WrongWinner);
@@ -758,7 +769,7 @@ pub struct FinalizeEmptyEpoch<'info> {
 pub fn finalize_empty_epoch(ctx: Context<FinalizeEmptyEpoch>) -> Result<()> {
     require!(ctx.accounts.epoch.status == EpochStatus::Open, StolonsError::InvalidEpochPhase);
     require!(Clock::get()?.unix_timestamp >= ctx.accounts.epoch.vote_end, StolonsError::InvalidEpochPhase);
-    require!(ctx.accounts.epoch.highest_support == 0, StolonsError::NoWinningSupport);
+    require!(ctx.accounts.epoch.highest_support < ctx.accounts.epoch.winning_quorum.max(1), StolonsError::NoWinningSupport);
     require!(ctx.accounts.parent.active_epoch == ctx.accounts.epoch.key(), StolonsError::InvalidEpochPhase);
     ctx.accounts.epoch.status = EpochStatus::NoWinner;
     ctx.accounts.parent.active_epoch = Pubkey::default();
@@ -994,12 +1005,10 @@ pub fn expire_candidate(ctx: Context<ExpireCandidate>) -> Result<()> {
                 ctx.accounts.candidate.child_mint,
                 pool.status,
             )?;
-            // A migration completed within the window stays eligible even when
-            // its permissionless recorder is called after that window.
+            // An on-time fundraising timestamp protects both pending migration
+            // and trading pools from permissionless expiry.
             require!(
-                !(pool.status == 2
-                    && pool.vesting_start_time > 0
-                    && pool.vesting_start_time <= ctx.accounts.candidate.migration_deadline.max(0) as u64),
+                !protected_candidate(pool.status, pool.vesting_start_time, ctx.accounts.candidate.migration_deadline),
                 StolonsError::DeadlinePassed
             );
             let (expected, _) = Pubkey::find_program_address(
@@ -1468,7 +1477,7 @@ pub struct EnableFeeSharing<'info> {
 pub fn enable_fee_sharing(ctx: Context<EnableFeeSharing>) -> Result<()> {
     require!(ctx.accounts.config.version == 1, StolonsError::InvalidConfiguration);
     // The version change rolls back if platform validation fails.
-    ctx.accounts.config.version = 2;
+    ctx.accounts.config.version = 3;
     validate_platform_config(&ctx.accounts.platform_config.to_account_info(), &ctx.accounts.config, reproduction_authority_address()?.0)
 }
 
@@ -1543,7 +1552,7 @@ pub fn collect_shared_cpmm_fees(ctx: Context<CollectSharedCpmmFees>) -> Result<(
 
 fn settle_cpmm_fees<'info>(accounts: &mut CollectSharedCpmmFees<'info>, fee_bump: u8, distribution_bump: u8) -> Result<()> {
     require!(!accounts.config.paused, StolonsError::Paused);
-    require!(accounts.config.version == 2, StolonsError::InvalidConfiguration);
+    require!(accounts.config.version >= 2, StolonsError::InvalidConfiguration);
     verify_cpmm_pool(&accounts.pool_state.to_account_info(), &accounts.config, accounts.mint.key(), accounts.config.quote_mint)?;
     require!(accounts.creator.key() != accounts.fee_authority.key() && accounts.treasury.key() != accounts.fee_authority.key(), StolonsError::InvalidConfiguration);
     let (collected_0, collected_1) = {
@@ -1671,4 +1680,86 @@ pub fn claim_curve_creator_fees(ctx: Context<ClaimCurveCreatorFees>) -> Result<(
         token::transfer(CpiContext::new_with_signer(a.token_program.to_account_info(), Transfer { from: a.fee_ata.to_account_info(), to: a.destination.to_account_info(), authority: a.fee_authority.to_account_info() }, &[seeds]), received)?;
     }
     Ok(())
+}
+
+
+#[derive(Accounts)]
+pub struct SettleProposalBond<'info> {
+    pub caller: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, GlobalConfig>,
+    #[account(seeds = [EPOCH_SEED, epoch.parent_mint.as_ref(), epoch.epoch_id.to_le_bytes().as_ref()], bump = epoch.bump)]
+    pub epoch: Account<'info, Epoch>,
+    #[account(seeds = [PROPOSAL_SEED, epoch.key().as_ref(), &[proposal.proposal_id]], bump = proposal.bump, constraint = proposal.epoch == epoch.key())]
+    pub proposal: Account<'info, Proposal>,
+    #[account(mut, seeds = [CANDIDATE_SEED, proposal.child_mint.as_ref()], bump = candidate.bump, constraint = candidate.proposal == proposal.key(), constraint = candidate.epoch == epoch.key(), constraint = candidate.proposer == proposal.proposer)]
+    pub candidate: Account<'info, Candidate>,
+    /// CHECK: the immutable original proposer receives a refundable bond.
+    #[account(mut, address = proposal.proposer)]
+    pub proposer: UncheckedAccount<'info>,
+    /// CHECK: the configured treasury receives forfeited winning bonds.
+    #[account(mut, address = config.treasury)]
+    pub treasury: UncheckedAccount<'info>,
+}
+
+pub fn settle_proposal_bond(ctx: Context<SettleProposalBond>) -> Result<()> {
+    require!(ctx.accounts.epoch.status != EpochStatus::Open, StolonsError::InvalidEpochPhase);
+    require!(!ctx.accounts.candidate.bond_settled, StolonsError::InvalidLifecycleState);
+    let winner = ctx.accounts.epoch.status == EpochStatus::Finalized && ctx.accounts.epoch.winning_proposal_id == ctx.accounts.proposal.proposal_id;
+    let refundable = bond_refundable(winner, ctx.accounts.candidate.status)?;
+    let amount = ctx.accounts.candidate.bond_lamports;
+    let source = ctx.accounts.candidate.to_account_info();
+    let recipient = if refundable { ctx.accounts.proposer.to_account_info() } else { ctx.accounts.treasury.to_account_info() };
+    require!(source.key != recipient.key, StolonsError::InvalidConfiguration);
+    let remaining = source.lamports().checked_sub(amount).ok_or(StolonsError::ArithmeticError)?;
+    require!(remaining >= Rent::get()?.minimum_balance(Candidate::SPACE), StolonsError::ArithmeticError);
+    let received = recipient.lamports().checked_add(amount).ok_or(StolonsError::ArithmeticError)?;
+    **source.try_borrow_mut_lamports()? = remaining;
+    **recipient.try_borrow_mut_lamports()? = received;
+    ctx.accounts.candidate.bond_settled = true;
+    Ok(())
+}
+
+
+pub(crate) fn voting_quorum(supply: u64) -> u64 {
+    (((supply as u128 + 999) / 1000) as u64).max(1)
+}
+pub(crate) fn extended_vote_end(current: i64, maximum: i64, now: i64, leader_changed: bool) -> Result<i64> {
+    require!(maximum >= current, StolonsError::InvalidEpochPhase);
+    let proposed = now.checked_add(VOTE_EXTENSION_SECONDS).ok_or(StolonsError::ArithmeticError)?;
+    Ok(if leader_changed && proposed > current { proposed.min(maximum) } else { current })
+}
+pub(crate) fn bond_refundable(winner: bool, status: CandidateStatus) -> Result<bool> {
+    if !winner || status == CandidateStatus::Settled { return Ok(true); }
+    if status == CandidateStatus::Expired || status == CandidateStatus::Orphan { return Ok(false); }
+    err!(StolonsError::InvalidLifecycleState)
+}
+#[cfg(test)]
+mod governance_policy_tests {
+    use super::*;
+    #[test]
+    fn quorum_rounds_up_and_does_not_overflow() {
+        assert_eq!(voting_quorum(1_000_000_000_000_000), 1_000_000_000_000);
+        assert_eq!(voting_quorum(1001), 2);
+        assert_eq!(voting_quorum(0), 1);
+        assert_eq!(voting_quorum(u64::MAX), 18_446_744_073_709_552);
+    }
+    #[test]
+    fn anti_sniping_only_extends_leader_changes_and_is_capped() {
+        assert_eq!(extended_vote_end(1000, 4600, 600, true).unwrap(), 1000);
+        assert_eq!(extended_vote_end(1000, 4600, 999, false).unwrap(), 1000);
+        assert_eq!(extended_vote_end(1000, 4600, 999, true).unwrap(), 1299);
+        assert_eq!(extended_vote_end(4599, 4600, 4598, true).unwrap(), 4600);
+        assert!(extended_vote_end(1001, 1000, 999, true).is_err());
+    }
+    #[test]
+    fn bond_refunds_losers_and_successful_winners_but_forfeits_failed_winners() {
+        assert!(bond_refundable(false, CandidateStatus::Proposed).unwrap());
+        assert!(bond_refundable(true, CandidateStatus::Settled).unwrap());
+        assert!(!bond_refundable(true, CandidateStatus::Expired).unwrap());
+        assert!(!bond_refundable(true, CandidateStatus::Orphan).unwrap());
+        for status in [CandidateStatus::Proposed, CandidateStatus::Selected, CandidateStatus::Launched, CandidateStatus::Qualified] {
+            assert!(bond_refundable(true, status).is_err());
+        }
+    }
 }

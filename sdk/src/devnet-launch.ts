@@ -33,7 +33,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   const configAccount = await connection.getAccountInfo(config, "confirmed");
   if (!configAccount?.owner.equals(programId)) throw new Error("Stolons configuration is missing.");
   const c = decodeLaunchConfig(configAccount.data);
-  if(cluster==='mainnet-beta'&&c.version!==2)throw Error('Mainnet requires fee-sharing config version 2.');
+  if(cluster==='mainnet-beta'&&c.version!==3)throw Error('Mainnet requires audited config version 3.');
   if (!c.launchpad.equals(programs.LAUNCHPAD_PROGRAM) || !c.launchConfig.equals(programs.LAUNCHPAD_CONFIG) || !c.quote.equals(new PublicKey("So11111111111111111111111111111111111111112"))) throw new Error("Configuration does not match the supported Raydium launch for this cluster.");
   const [launchAccount, mintAccount, lineageAccount] = await connection.getMultipleAccountsInfo([c.launchConfig, mint, deriveLineagePda(programId, mint)], "confirmed");
   if (!launchAccount?.owner.equals(c.launchpad)) throw new Error("Raydium launch configuration is missing.");

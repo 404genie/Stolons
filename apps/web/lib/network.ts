@@ -17,7 +17,7 @@ if(IS_MAINNET){
  if(!RPC_ENDPOINT||new URL(RPC_ENDPOINT).protocol!=='https:')throw Error('Mainnet requires an explicit HTTPS RPC.');
  if(!PROGRAM_ID||PROGRAM_ID===devnetProgram||new PublicKey(PROGRAM_ID).equals(PublicKey.default))throw Error('Mainnet requires its own program identity.');
  if(!LAUNCH_LOOKUP_TABLE||new PublicKey(LAUNCH_LOOKUP_TABLE).equals(PublicKey.default))throw Error('Mainnet requires a configured launch lookup table.');
- if(GRADUATION_TARGET_LAMPORTS===undefined||GRADUATION_TARGET_LAMPORTS<=1000000000n||GRADUATION_TARGET_LAMPORTS>18446744073709551615n)throw Error('Mainnet requires its reviewed graduation target.');
+ if(GRADUATION_TARGET_LAMPORTS===undefined||GRADUATION_TARGET_LAMPORTS!==85000000000n||GRADUATION_TARGET_LAMPORTS>18446744073709551615n)throw Error('Mainnet requires its reviewed graduation target.');
 }
 export const TRANSACTIONS_ENABLED=!IS_MAINNET||process.env.NEXT_PUBLIC_ENABLE_MAINNET_TRANSACTIONS==='true';
 export function requireTransactions(){if(!TRANSACTIONS_ENABLED)throw Error('Mainnet launches and trading are not open yet.');}

@@ -11,6 +11,9 @@ import type { InitializeConfigArgs, SubmitProposalArgs } from "./types.js";
 type AccountMetaSpec = readonly [string, signer: boolean, writable: boolean];
 
 export const ACCOUNT_SCHEMAS = {
+  settle_proposal_bond: [
+    ["caller", true, false], ["config", false, false], ["epoch", false, false], ["proposal", false, false], ["candidate", false, true], ["proposer", false, true], ["treasury", false, true]
+  ],
   enable_fee_sharing: [
     ["config", false, true], ["authority", true, false], ["platform_config", false, false]
   ],
@@ -122,6 +125,7 @@ export interface InstructionArgs {
 export const SUPPORTED_INSTRUCTIONS: readonly InstructionName[] = Object.freeze(Object.keys(ACCOUNT_SCHEMAS) as InstructionName[]);
 
 const DISCRIMINATORS: Record<InstructionName, readonly number[]> = {
+  settle_proposal_bond: [25, 250, 254, 212, 161, 19, 191, 15],
   enable_fee_sharing: [81, 199, 226, 220, 148, 53, 52, 176],
   collect_shared_cpmm_fees: [130, 235, 110, 152, 247, 182, 118, 109],
   claim_shared_creator_fees: [199, 100, 138, 9, 171, 189, 73, 144],

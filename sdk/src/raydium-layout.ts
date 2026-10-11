@@ -1,6 +1,6 @@
 export const RAYDIUM_LAYOUT = Object.freeze({
   launchPool: {
-    status: 17, baseDecimals: 18, quoteDecimals: 19, migrateType: 20, supply: 21, totalSell: 29,
+    status: 17, baseDecimals: 18, quoteDecimals: 19, migrateType: 20, supply: 21, totalSell: 29, fundraisingTarget: 69,
     locked: 101, cliff: 109, unlock: 117, vestingStart: 125, config: 141, platform: 173,
     baseMint: 205, quoteMint: 237, baseVault: 269, creator: 333
   },
@@ -24,6 +24,7 @@ export interface LaunchPoolSnapshot {
   migrateType: number;
   supply: bigint;
   totalSell: bigint;
+  fundraisingTarget: bigint;
   locked: bigint;
   cliff: bigint;
   unlock: bigint;
@@ -78,7 +79,7 @@ export function decodeLaunchPool(data: Uint8Array): LaunchPoolSnapshot {
   return {
     status: checkedBytes(data, x.status, 1)[0]!, baseDecimals: checkedBytes(data, x.baseDecimals, 1)[0]!,
     quoteDecimals: checkedBytes(data, x.quoteDecimals, 1)[0]!, migrateType: checkedBytes(data, x.migrateType, 1)[0]!,
-    supply: readU64(data, x.supply), totalSell: readU64(data, x.totalSell), locked: readU64(data, x.locked),
+    supply: readU64(data, x.supply), totalSell: readU64(data, x.totalSell), fundraisingTarget: readU64(data, x.fundraisingTarget), locked: readU64(data, x.locked),
     cliff: readU64(data, x.cliff), unlock: readU64(data, x.unlock), vestingStart: readU64(data, x.vestingStart),
     config: readKey(data, x.config), platform: readKey(data, x.platform), baseMint: readKey(data, x.baseMint),
     quoteMint: readKey(data, x.quoteMint), baseVault: readKey(data, x.baseVault), creator: readKey(data, x.creator)

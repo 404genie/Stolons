@@ -36,3 +36,7 @@ The owner supplied successful SBF/IDL compilation, no reported stack-frame overf
 Mainnet authority and keeper balances were zero at inspection. ProgramData rent was 3.98038828 SOL, excluding executable-account rent, temporary deploy buffer funding, transaction fees and initialization costs. Program deployment, platform/protocol initialization, lookup-table creation, funded mainnet workers, production RPC/storage configuration, and live production verification remain pending. The frontend's mainnet transactions remain disabled by default.
 
 Review the outstanding adversarial and integration gates in [MAINNET.md](MAINNET.md). No further Railway/Vercel deployment is part of this audit handoff. The three Railway services that follow `main` use `/AUDIT_HOLD_DO_NOT_DEPLOY` as their watch pattern; restore intended watch patterns only when deployment is authorized. The existing devnet keeper remains pinned to its prior commit.
+
+## Follow-up audit findings
+
+The 85 SOL target is now enforced on-chain and in clients. Conditional status-1 expiry protection is added, but the conflicting Raydium timestamp semantics remain a release blocker. The owner selected quorum, proposer bond and anti-sniping protections; they are implemented in version 3. These Rust/account-layout changes supersede the artifact hashes above for deployment. Fresh SBF/IDL compilation and runtime verification are pending. Review the new `settle_proposal_bond` instruction and appended Epoch/Candidate fields. No deployment or account migration is included.

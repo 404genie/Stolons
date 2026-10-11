@@ -5,7 +5,7 @@ import {createRequire} from 'node:module';
 import {Connection,PublicKey} from '@solana/web3.js';
 import {deriveConfigPda,deriveReproductionAuthorityPda,decodePlatformConfig,GENESIS_SUPPLY,CURVE_ALLOCATION,REPRODUCTION_RESERVE} from '../../sdk/dist/index.js';
 const {ALL_PROGRAM_ID,PlatformConfig,LaunchpadConfig,CpmmConfigInfoLayout,Curve}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
-import {MAINNET_GENESIS_HASH as MAINNET_GENESIS} from '../../sdk/dist/network.js';
+import {MAINNET_GENESIS_HASH as MAINNET_GENESIS,MAINNET_GRADUATION_TARGET_LAMPORTS} from '../../sdk/dist/network.js';
 const LOADER=new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
 const DEVNET_PROGRAM='4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ';
 class PreflightError extends Error {}
@@ -19,7 +19,7 @@ export function validateManifest(m){
  for(const [field,expected]of [['launchlabProgram',ALL_PROGRAM_ID.LAUNCHPAD_PROGRAM],['cpmmProgram',ALL_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM],['launchlabConfig',ALL_PROGRAM_ID.LAUNCHPAD_CONFIG]])if(m[field]!==expected.toBase58())fail(`Noncanonical mainnet ${field}.`);
  for(const [field,max]of [['proposalWindowSeconds',2592000],['votingWindowSeconds',2592000],['candidateLaunchWindowSeconds',604800],['candidateMigrationWindowSeconds',2592000]])if(!Number.isSafeInteger(m[field])||m[field]<300||m[field]>max)fail(`Set ${field} between 300 and ${max} seconds; do not reuse devnet's 60-second windows.`);
  for(const field of ['proposalFeeLamports','graduationTargetLamports'])if(typeof m[field]!=='string'||!/^\d+$/.test(m[field])||BigInt(m[field])>18446744073709551615n)fail(`Set ${field} as an unsigned integer string.`);
- if(BigInt(m.proposalFeeLamports)>1000000000n||BigInt(m.graduationTargetLamports)<=1000000000n)fail('Production fees must fit protocol limits and graduation must exceed the 1 SOL devnet test target.');
+ if(BigInt(m.proposalFeeLamports)>1000000000n||BigInt(m.graduationTargetLamports)!==MAINNET_GRADUATION_TARGET_LAMPORTS)fail('Production fees must fit protocol limits and graduation must equal the on-chain 85 SOL target.');
  for(const field of ['platformFeeRate','creatorFeeRate'])if(!Number.isSafeInteger(m[field])||m[field]<=0||m[field]>=1000000)fail(`Set nonzero ${field} in millionths for launchpad and creator revenue.`);
  for(const field of ['launchProtocolFeeRate','cpmmTradeFeeRate','cpmmCreatorFeeRate'])if(!Number.isSafeInteger(m[field])||m[field]<0||m[field]>=1000000)fail(`Set ${field} in millionths.`);
  if(m.launchProtocolFeeRate+m.platformFeeRate+m.creatorFeeRate>=1000000||m.cpmmTradeFeeRate+m.cpmmCreatorFeeRate>=1000000)fail('Combined venue fees must be below 100%.');
@@ -36,7 +36,7 @@ export async function inspectMainnet(connection,manifest){
  for(const i of [0,3,4])if(!a[i]?.executable||!a[i].owner.equals(LOADER))fail('Configured executable program is unavailable or has the wrong loader.');
  if(a[0].data.length<36||a[0].data.readUInt32LE(0)!==2||!new PublicKey(a[0].data.subarray(4,36)).equals(dataKey))fail('Stolons executable does not point to its canonical ProgramData account.');
  if(!a[1]?.owner.equals(LOADER)||a[1].data.length<45||a[1].data.readUInt32LE(0)!==3||a[1].data[12]!==1||!new PublicKey(a[1].data.subarray(13,45)).equals(new PublicKey(m.upgradeAuthority)))fail('Unexpected mainnet upgrade authority.');
- const c=a[2];if(!c?.owner.equals(program)||c.data.length<307||!c.data.subarray(0,8).equals(Buffer.from([149,8,156,202,160,252,176,217]))||c.data[305]!==2)fail('Mainnet Stolons configuration missing or unsupported.');
+ const c=a[2];if(!c?.owner.equals(program)||c.data.length<307||!c.data.subarray(0,8).equals(Buffer.from([149,8,156,202,160,252,176,217]))||c.data[305]!==3)fail('Mainnet Stolons configuration missing or unsupported.');
  for(const [field,offset]of [['configAuthority',8],['treasury',40],['launchlabProgram',72],['cpmmProgram',104],['launchlabConfig',136],['platformConfig',168],['cpmmConfig',232]])if(!new PublicKey(c.data.subarray(offset,offset+32)).equals(new PublicKey(m[field])))fail(`On-chain ${field} differs from reviewed manifest.`);
  if(new PublicKey(c.data.subarray(200,232)).toBase58()!=='So11111111111111111111111111111111111111112')fail('Quote mint must be wrapped SOL.');
  for(const [field,offset]of [['proposalWindowSeconds',264],['votingWindowSeconds',272],['candidateLaunchWindowSeconds',280],['candidateMigrationWindowSeconds',288],['proposalFeeLamports',296]])if(c.data.readBigUInt64LE(offset)!==BigInt(m[field]))fail(`On-chain ${field} differs from manifest.`);

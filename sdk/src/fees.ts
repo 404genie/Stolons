@@ -21,7 +21,7 @@ async function state(connection:Connection,input:FeeInput){
  await assertCluster(connection,input.cluster??'devnet');
  const config=deriveConfigPda(input.programId),[account,lineage]=await Promise.all([connection.getAccountInfo(config,'confirmed'),new StolonsClient(connection,input.programId).getLineage(input.mint)]);
  if(!account?.owner.equals(input.programId)||!lineage)throw Error('Registered token or config missing.');
- const c=decodeLaunchConfig(account.data);if(c.version!==2)throw Error('Enable fee sharing after the program upgrade before creating fee-sharing tokens.');
+ const c=decodeLaunchConfig(account.data);if(c.version<2)throw Error('Enable fee sharing after the program upgrade before creating fee-sharing tokens.');
  return {config,c,lineage,authority:deriveFeeAuthorityPda(input.programId,input.mint),treasury:new PublicKey(account.data.subarray(40,72)),cpmm:new PublicKey(account.data.subarray(104,136)),cpmmConfig:new PublicKey(account.data.subarray(232,264))};
 }
 async function prepare(connection:Connection,input:FeeInput,instruction:ReturnType<typeof buildInstruction>){

@@ -28,6 +28,7 @@ test("SDK instruction builders match Anchor names, account metas, and discrimina
   }
 
   const contextNames = {
+    settle_proposal_bond: "SettleProposalBond",
     claim_shared_creator_fees: "CollectSharedCpmmFees", enable_fee_sharing: "EnableFeeSharing", collect_shared_cpmm_fees: "CollectSharedCpmmFees", claim_curve_creator_fees: "ClaimCurveCreatorFees",
     initialize_config: "InitializeConfig", set_paused: "SetPaused", register_root_launch: "RegisterRootLaunch",
     register_root_migration: "RegisterRootMigration", claim_root_reproduction_reserve: "ClaimRootReproductionReserve",

@@ -73,8 +73,10 @@ pub struct Epoch {
     pub winning_proposal_id: u8,
     pub status: EpochStatus,
     pub bump: u8,
+    pub winning_quorum: u64,
+    pub max_vote_end: i64,
 }
-impl Epoch { pub const SPACE: usize = 8 + 32 + 8 + 8 * 4 + 1 + 8 + 1 + 1 + 1; }
+impl Epoch { pub const SPACE: usize = 8 + 32 + 8 + 8 * 4 + 1 + 8 + 1 + 1 + 1 + 8 + 8; }
 
 #[account]
 pub struct Proposal {
@@ -133,8 +135,10 @@ pub struct Candidate {
     pub reserve_claimed: bool,
     pub settled: bool,
     pub bump: u8,
+    pub bond_lamports: u64,
+    pub bond_settled: bool,
 }
-impl Candidate { pub const SPACE: usize = 8 + 7 * 32 + 1 + 8 * 5 + 1 + 1 + 1; }
+impl Candidate { pub const SPACE: usize = 8 + 7 * 32 + 1 + 8 * 5 + 1 + 1 + 1 + 8 + 1; }
 
 
 #[account]

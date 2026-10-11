@@ -41,3 +41,5 @@ Use the transaction link to inspect its status in Solana Explorer. If confirmati
 - [Stolons source](https://github.com/404genie/Stolons)
 - [Fee mechanics and validation](FEES.md)
 - [Economics](ECONOMICS.md)
+
+New mainnet rounds require winning support of at least 0.1% of parent supply. Proposals include a 0.05 SOL bond, separate from the fee and account rent. Losing proposals and successfully graduated winners can settle their bond from the round page; failed winners forfeit it. Late leader changes extend voting by five minutes, capped at one hour. Votes remain locked until the round is finalized.

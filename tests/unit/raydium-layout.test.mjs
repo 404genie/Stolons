@@ -31,7 +31,7 @@ test("SDK Raydium offsets stay aligned with the on-chain adapter constants", asy
   const offsets = {
     launchPool: {
       status: "LL_STATUS_OFFSET", baseDecimals: "LL_BASE_DECIMALS_OFFSET", quoteDecimals: "LL_QUOTE_DECIMALS_OFFSET",
-      migrateType: "LL_MIGRATE_TYPE_OFFSET", supply: "LL_SUPPLY_OFFSET", totalSell: "LL_TOTAL_SELL_OFFSET",
+      migrateType: "LL_MIGRATE_TYPE_OFFSET", supply: "LL_SUPPLY_OFFSET", totalSell: "LL_TOTAL_SELL_OFFSET", fundraisingTarget: "LL_FUNDRAISING_TARGET_OFFSET",
       locked: "LL_LOCKED_AMOUNT_OFFSET", cliff: "LL_VESTING_CLIFF_OFFSET", unlock: "LL_VESTING_UNLOCK_OFFSET",
       vestingStart: "LL_VESTING_START_TIME_OFFSET", config: "LL_CONFIG_OFFSET", platform: "LL_PLATFORM_OFFSET",
       baseMint: "LL_BASE_MINT_OFFSET", quoteMint: "LL_QUOTE_MINT_OFFSET", baseVault: "LL_BASE_VAULT_OFFSET", creator: "LL_CREATOR_OFFSET"
@@ -59,13 +59,14 @@ test("LaunchLab pool decoder reads the pinned field positions", () => {
   const data = fixture(365, RAYDIUM_ACCOUNT_DISCRIMINATORS.poolState);
   const x = RAYDIUM_LAYOUT.launchPool;
   data[x.status] = 2; data[x.baseDecimals] = 6; data[x.quoteDecimals] = 9; data[x.migrateType] = 1;
-  for (const [field, value] of [["supply", 1_000_000_000_000_000n], ["totalSell", 850_000_000_000_000n], ["locked", 150_000_000_000_000n], ["cliff", 0n], ["unlock", 0n], ["vestingStart", 1_800_000_000n]]) {
+  for (const [field, value] of [["supply", 1_000_000_000_000_000n], ["totalSell", 850_000_000_000_000n], ["fundraisingTarget", 85_000_000_000n], ["locked", 150_000_000_000_000n], ["cliff", 0n], ["unlock", 0n], ["vestingStart", 1_800_000_000n]]) {
     putU64(data, x[field], value);
   }
   for (const [field, byte] of [["config", 1], ["platform", 2], ["baseMint", 3], ["quoteMint", 4], ["baseVault", 5], ["creator", 6]]) putKey(data, x[field], byte);
   const pool = decodeLaunchPool(data);
   assert.equal(pool.status, 2);
   assert.equal(pool.supply, 1_000_000_000_000_000n);
+  assert.equal(pool.fundraisingTarget,85_000_000_000n);
   assert.equal(pool.locked, 150_000_000_000_000n);
   assert.equal(pool.vestingStart, 1_800_000_000n);
   assert.equal(pool.baseVault[0], 5);
