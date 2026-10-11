@@ -8,7 +8,9 @@ export const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 export interface TokenDraft { name: string; symbol: string; description: string; website: string; twitter: string; telegram: string }
 
 export function normalizeTokenDraft(value: TokenDraft): TokenDraft {
-  const draft = { name: value.name.trim(), symbol: value.symbol.trim(), description: value.description.trim(), website: value.website.trim(), twitter: value.twitter.trim(), telegram: value.telegram.trim() };
+  // Multipart form uploads normalize line endings to CRLF. Sign canonical LF text.
+  const text = (value: string) => value.replace(/\r\n?/g, "\n").trim();
+  const draft = { name: text(value.name), symbol: text(value.symbol), description: text(value.description), website: text(value.website), twitter: text(value.twitter), telegram: text(value.telegram) };
   validateLaunchDetails(draft.name, draft.symbol, "https://example.com/token.json");
   if (new TextEncoder().encode(draft.description).length > 2000) throw new Error("Description must fit within 2,000 UTF-8 bytes.");
   for (const [label, text] of Object.entries({ website: draft.website, twitter: draft.twitter, telegram: draft.telegram })) {

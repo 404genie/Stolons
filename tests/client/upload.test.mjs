@@ -12,12 +12,12 @@ import path from 'node:path';
 const draft = { name: 'Root', symbol: 'ROOT', description: 'A token family', website: 'https://example.com', twitter: 'https://x.com/stolons', telegram: 'https://t.me/stolons' };
 const image = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
-function approval() {
+function approval(details = draft) {
   const key = Keypair.generate();
   const privateKey = createPrivateKey({ key: Buffer.concat([Buffer.from('302e020100300506032b657004220420', 'hex'), key.secretKey.subarray(0, 32)]), format: 'der', type: 'pkcs8' });
   const wallet = key.publicKey.toBase58(), origin = 'https://stolons.test', timestamp = Date.now();
   const hash = createHash('sha256').update(image).digest('hex');
-  const signature = sign(null, Buffer.from(metadataUploadMessage(draft, hash, wallet, origin, timestamp)), privateKey).toString('base64');
+  const signature = sign(null, Buffer.from(metadataUploadMessage(details, hash, wallet, origin, timestamp)), privateKey).toString('base64');
   return { wallet, origin, timestamp, signature };
 }
 
@@ -29,6 +29,18 @@ test('wallet approval binds the image, token fields and site', () => {
   assert.throws(() => check(draft, Buffer.concat([image, Buffer.from([1])]), a.origin), /does not match/);
   assert.throws(() => check(draft, image, 'https://other.test'), /does not match/);
   assert.throws(() => verifyMetadataUpload(draft, image, a.wallet, a.origin, a.timestamp, a.signature, a.timestamp + 300_001), /expired/);
+});
+
+test('multiline descriptions retain wallet approval through multipart line-ending normalization', async () => {
+  const details = { ...draft, description: 'First line\nSecond line\nThird line' };
+  const a = approval(details);
+  const form = new FormData();
+  for (const [key, value] of Object.entries(details)) form.set(key, value);
+  const request = new Request(a.origin, { method: 'POST', body: form });
+  const received = Object.fromEntries((await request.formData()).entries());
+  assert.equal(received.description, 'First line\r\nSecond line\r\nThird line');
+  assert.doesNotThrow(() => verifyMetadataUpload(received, image, a.wallet, a.origin, a.timestamp, a.signature));
+  assert.equal(createTokenMetadata(received, 'https://example.com/root.png').description, details.description);
 });
 
 test('image validation rejects disguised active content and large uploads', () => {
