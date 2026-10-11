@@ -116,3 +116,9 @@ Build the SDK, provide the settings from `services/keeper/.env.example`, then in
 For mainnet, explicitly set `KEEPER_CLUSTER=mainnet-beta`, the mainnet RPC, deployed Stolons program ID, and a mainnet lookup table if needed. The SDK verifies the genesis hash and canonical Raydium programs. Mainnet is not deployed or enabled by these changes; provision and test the worker before opening mainnet launches. Users then need no graduation activation approvals. Devnet retains manual controls for testing.
 
 Discover now separates new launches (unmigrated pools) and graduated tokens (migrated CPMM pools), independently of reserve activation. Graduated token pages lead with market statistics, while curve and migration status refresh automatically.
+
+### Market currency and recent transactions
+
+Graduated token statistics display test SOL on devnet. With `NEXT_PUBLIC_SOLANA_CLUSTER=mainnet-beta`, the read-only market API verifies the mainnet genesis hash and canonical Raydium accounts, then converts market cap, liquidity, and one-hour volume to USD using Pyth Hermes SOL/USD. The displayed volume uses the current SOL/USD rate, rather than historical per-trade dollar prices. Quotes older than 120 seconds or with more than 2% relative confidence are rejected; unavailable prices or incomplete history display unavailable values, never invented zeroes. Price data is display-only and does not affect swap execution. Hermes API: https://docs.pyth.network/price-feeds/core/fetch-price-updates . Mainnet RPC and deployed Stolons program ID must also be configured; this does not enable mainnet launch or trading.
+
+Token pages show the 15 most recent confirmed pool transactions from LaunchLab and, after migration, CPMM, refreshed every 15 seconds. The table includes time, venue, execution status, and a cluster-correct explorer link. Pool activity includes swaps and non-trading operations; failures remain visible. Missing history is reported as unavailable.

@@ -1,6 +1,6 @@
 import { Connection, PublicKey, Keypair, SystemProgram, ComputeBudgetProgram, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { NATIVE_MINT, TOKEN_PROGRAM_ID, ACCOUNT_SIZE, getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, createInitializeAccountInstruction, createCloseAccountInstruction } from '@solana/spl-token';
-import { DEVNET_PROGRAM_ID, LaunchpadPool, LaunchpadConfig, PlatformConfig, Curve, getPdaLaunchpadPoolId, getPdaLaunchpadAuth, getPdaPlatformVault, getPdaCreatorVault, buyExactInInstruction, sellExactInInstruction, CpmmPoolInfoLayout, CpmmConfigInfoLayout, CurveCalculator, FeeOn, makeSwapCpmmBaseInInstruction, getPdaPoolAuthority } from '@raydium-io/raydium-sdk-v2';
+import { DEVNET_PROGRAM_ID, ALL_PROGRAM_ID, LaunchpadPool, LaunchpadConfig, PlatformConfig, Curve, getPdaLaunchpadPoolId, getPdaLaunchpadAuth, getPdaPlatformVault, getPdaCreatorVault, buyExactInInstruction, sellExactInInstruction, CpmmPoolInfoLayout, CpmmConfigInfoLayout, CurveCalculator, FeeOn, makeSwapCpmmBaseInInstruction, getPdaPoolAuthority } from '@raydium-io/raydium-sdk-v2';
 import { deriveCpmmPool } from "./raydium.js";
 import { deriveConfigPda } from './pda.js';
 import { StolonsClient } from './client.js';
@@ -27,12 +27,14 @@ export function tradeMinimum(output: bigint, slippageBps: number): bigint {
   if (minimum <= 0n) throw new Error('Trade is too small to produce a positive minimum output.');
   return minimum;
 }
-async function readMarket(connection: Connection, input: TradeInput) {
-  if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error('Trading is enabled on Solana devnet only.');
+async function readMarket(connection: Connection, input: TradeInput, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
+  const expectedGenesis=cluster==='devnet'?DEVNET_GENESIS_HASH:'5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2dZ';
+  if (await connection.getGenesisHash() !== expectedGenesis) throw new Error('Trading is enabled on Solana devnet only; market RPC cluster mismatch.');
+  const programs=cluster==='devnet'?DEVNET_PROGRAM_ID:ALL_PROGRAM_ID;
   const account = await connection.getAccountInfo(deriveConfigPda(input.programId), 'confirmed');
   if (!account?.owner.equals(input.programId)) throw new Error('Stolons configuration is missing.');
   const c = decodeLaunchConfig(account.data);
-  if (!c.launchpad.equals(DEVNET_PROGRAM_ID.LAUNCHPAD_PROGRAM) || !c.launchConfig.equals(DEVNET_PROGRAM_ID.LAUNCHPAD_CONFIG) || !c.quote.equals(NATIVE_MINT)) throw new Error('Unsupported trading configuration.');
+  if (!c.launchpad.equals(programs.LAUNCHPAD_PROGRAM) || !c.launchConfig.equals(programs.LAUNCHPAD_CONFIG) || !c.quote.equals(NATIVE_MINT)) throw new Error('Unsupported trading configuration.');
   const lineage = await new StolonsClient(connection, input.programId).getLineage(input.mint);
   const poolId = getPdaLaunchpadPoolId(c.launchpad, input.mint, NATIVE_MINT).publicKey;
   if (!lineage || !lineage.launchPool.equals(poolId)) throw new Error('This mint is not a registered Stolons launch.');
@@ -44,7 +46,7 @@ async function readMarket(connection: Connection, input: TradeInput) {
   let cpmm: Awaited<ReturnType<typeof readCpmmMarket>> | null = null;
   if (pool.status === 2) {
     const cpmmProgram = new PublicKey(account.data.subarray(104,136)), cpmmConfig = new PublicKey(account.data.subarray(232,264));
-    if (!cpmmProgram.equals(DEVNET_PROGRAM_ID.CREATE_CPMM_POOL_PROGRAM)) throw new Error('Unsupported CPMM program.');
+    if (!cpmmProgram.equals(programs.CREATE_CPMM_POOL_PROGRAM)) throw new Error('Unsupported CPMM program.');
     const address = deriveCpmmPool(cpmmProgram, cpmmConfig, input.mint, NATIVE_MINT);
     cpmm = await readCpmmMarket(connection, address, cpmmProgram, cpmmConfig, input.mint);
   } else if (pool.status !== 0) throw new Error('Unknown Raydium market status.');
@@ -182,9 +184,9 @@ export async function readTradeBalance(connection: Connection, mint: PublicKey, 
   return account.data.readBigUInt64LE(64);
 }
 
-/** SOL-denominated devnet market values, from current CPMM vault reserves. */
-export async function readCpmmStats(connection: Connection, programId: PublicKey, mint: PublicKey) {
-  const market = await readMarket(connection, { programId, mint, owner: PublicKey.default, side:'buy',amount:1n,slippageBps:100 });
+/** SOL-denominated market values, from current CPMM vault reserves. */
+export async function readCpmmStats(connection: Connection, programId: PublicKey, mint: PublicKey, cluster: 'devnet' | 'mainnet-beta' = 'devnet') {
+  const market = await readMarket(connection, { programId, mint, owner: PublicKey.default, side:'buy',amount:1n,slippageBps:100 },cluster);
   const cpmm=market.cpmm;
   if (!cpmm) return null;
   const nativeIsA=cpmm.pool.mintA.equals(NATIVE_MINT), quoteReserve=nativeIsA?cpmm.reserveA:cpmm.reserveB, tokenReserve=nativeIsA?cpmm.reserveB:cpmm.reserveA;
