@@ -1351,3 +1351,9 @@ textarea {
 .transactions-table th,.transactions-table td { padding:13px 12px; border-bottom:1px solid rgba(255,255,255,.08); }
 .transactions-table td:first-child,.transactions-table th:first-child { padding-left:0; }
 .transactions-table a { color:var(--accent); }
+.proposal-preview { width:80px; height:80px; object-fit:cover; border-radius:16px; display:block; margin-bottom:12px; }
+.proposal-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+.proposal-row:last-child { border-bottom:0; }
+.proposal-row .small { margin:6px 0; }
+select { width:100%; padding:12px; border:1px solid rgba(255,255,255,.12); background:#111518; color:#edf2ee; border-radius:10px; }
+@media(max-width:600px) { .proposal-row { align-items:flex-start; flex-direction:column; } }

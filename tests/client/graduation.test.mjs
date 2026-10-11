@@ -35,3 +35,14 @@ test('CPMM buy and sell preserve reviewed minimums and use the migrated pool',as
 test('keeper mainnet mode rejects a devnet RPC before reading or signing accounts',async()=>{
  const x=fixture();await assert.rejects(readGraduation(x.connection,x.program,x.mint,'mainnet-beta'),/cluster mismatch/);
 });
+
+test('child graduation builds registration, reserve claim, and parent-burn finalization against the right family',async()=>{
+ const {deriveLineagePda,deriveCandidatePda,deriveFamilyPda,deriveReproductionVaultPda}=await import('../../sdk/dist/index.js');
+ for(const [status,claimed,phase]of [[3,false,'register'],[4,false,'claim'],[4,true,'activate']]){
+  const x=fixture({status,claimed}),parent=Keypair.generate().publicKey,root=Keypair.generate().publicKey;
+  const account=await x.connection.getAccountInfo(deriveLineagePda(x.program,x.mint));account.data.set(parent.toBytes(),72);account.data.set(root.toBytes(),40);account.data[136]=1;
+  const prepared=await buildGraduationStep(x.connection,x.program,x.mint,x.owner);assert.equal(prepared.phase,phase);
+  const instruction=TransactionMessage.decompile(prepared.transaction.message).instructions.at(-1);assert.ok(instruction.keys.some(meta=>meta.pubkey.equals(deriveCandidatePda(x.program,x.mint))));
+  if(phase==='activate'){assert.ok(instruction.keys.some(meta=>meta.pubkey.equals(deriveFamilyPda(x.program,root))));assert.ok(instruction.keys.some(meta=>meta.pubkey.equals(deriveReproductionVaultPda(x.program,parent))&&meta.isWritable));assert.ok(instruction.keys.some(meta=>meta.pubkey.equals(parent)&&meta.isWritable));}
+ }
+});

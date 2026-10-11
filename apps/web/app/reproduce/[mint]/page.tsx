@@ -1,107 +1,68 @@
 "use client";
-
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { PublicKey, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, deriveConfigPda, deriveEpochPda, deriveLineagePda, deriveReproductionVaultPda, deriveVaultAuthorityPda, deriveVoteAuthorityPda, deriveVoteEscrowPda, buildInstruction, StolonsClient, LineageStatus } from "@stolons/sdk";
-import { Navigation } from "../../../components/nav";
-
-import { STOLONS_PROGRAM_ID } from "../../../lib/devnet";
-
-import { DEVNET_GENESIS_HASH } from "@stolons/sdk/launch-validation";
-import { shortAddress, statusLabel } from "../../../lib/tokens";
-
-const zero = PublicKey.default;
-
-export default function ReproductionPage() {
-  const { mint: mintText } = useParams<{ mint: string }>();
-  const { connection } = useConnection();
-  const wallet = useWallet();
-  const programId = useMemo(() => new PublicKey(STOLONS_PROGRAM_ID), []);
-  const client = useMemo(() => new StolonsClient(connection, programId), [connection, programId]);
-  const [lineage, setLineage] = useState<Awaited<ReturnType<StolonsClient["getLineage"]>>>(null);
-  const [vaultAmount, setVaultAmount] = useState<bigint | null>(null);
-  const [settings, setSettings] = useState<{ proposalWindow: number; votingWindow: number; paused: boolean } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState("");
-  const [signature, setSignature] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const mint = new PublicKey(mintText);
-        const [entry, vault, config] = await Promise.all([
-          client.getLineage(mint),
-          connection.getTokenAccountBalance(deriveReproductionVaultPda(programId, mint), "confirmed").catch(() => null),
-          connection.getAccountInfo(deriveConfigPda(programId), "confirmed")
-        ]);
-        if (cancelled) return;
-        if (!config || !config.owner.equals(programId) || config.data.length < 307) throw new Error("Protocol configuration missing.");
-        setSettings({ proposalWindow: Number(config.data.readBigUInt64LE(264)), votingWindow: Number(config.data.readBigUInt64LE(272)), paused: config.data[304] !== 0 });
-        setLineage(entry);
-        setVaultAmount(vault ? BigInt(vault.value.amount) : 0n);
-      } catch { if (!cancelled) setMessage("Could not load this lineage from devnet."); }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [client, connection, mintText, programId]);
-
-  const eligible = lineage && settings && !settings.paused && lineage.activeEpoch.equals(zero) && lineage.activeCandidate.equals(zero) && lineage.directChildrenCount < 15 && (lineage.status === LineageStatus.RootActive || lineage.status === LineageStatus.DescendantActive);
-
-  async function openRound() {
-    const publicKey = wallet.publicKey;
-    const signTransaction = wallet.signTransaction;
-    if (!publicKey || !signTransaction || !lineage) { setMessage("Connect a wallet to open a round."); return; }
-    setBusy(true); setMessage("");
-    try {
-      if (await connection.getGenesisHash() !== DEVNET_GENESIS_HASH) throw new Error("Reproduction is enabled on devnet only.");
-      const mint = new PublicKey(mintText);
-      const current = await client.getLineage(mint);
-      if (!current || !current.activeEpoch.equals(zero) || !current.activeCandidate.equals(zero)) throw new Error("This token already has an active round or candidate.");
-      const epoch = deriveEpochPda(programId, mint, current.nextEpochId);
-      const instruction = buildInstruction(programId, "open_epoch", {
-        payer: publicKey,
-        config: deriveConfigPda(programId),
-        parent: deriveLineagePda(programId, mint),
-        parent_mint: mint,
-        vault_authority: deriveVaultAuthorityPda(programId, mint),
-        reproduction_vault: deriveReproductionVaultPda(programId, mint),
-        epoch,
-        vote_authority: deriveVoteAuthorityPda(programId, epoch),
-        vote_escrow: deriveVoteEscrowPda(programId, epoch),
-        token_program: TOKEN_PROGRAM_ID,
-        system_program: SYSTEM_PROGRAM_ID
-      }, current.nextEpochId);
-      const latest = await connection.getLatestBlockhash("confirmed");
-      const preview = new VersionedTransaction(new TransactionMessage({ payerKey: publicKey, recentBlockhash: latest.blockhash, instructions: [instruction] }).compileToV0Message());
-      const simulation = await connection.simulateTransaction(preview, { sigVerify: false, commitment: "confirmed" });
-      if (simulation.value.err) throw new Error(`Round simulation failed: ${JSON.stringify(simulation.value.err)}`);
-      const signature = await client.send({ publicKey, signTransaction }, instruction);
-      setSignature(signature);
-      setMessage("Your reproduction round is open on devnet.");
-      setLineage(await client.getLineage(mint));
-    } catch (cause) {
-      setMessage(cause instanceof Error ? cause.message : "Transaction failed.");
-    } finally { setBusy(false); }
-  }
-
-  const active = lineage?.status === LineageStatus.RootActive || lineage?.status === LineageStatus.DescendantActive;
-  const roundOpen = !!lineage && !lineage.activeEpoch.equals(zero);
-  const steps = [
-    ["Graduated and activated", !!active],
-    ["Reserve covers a 10M burn", vaultAmount !== null && vaultAmount >= 10_000_000_000_000n],
-    ["Child slots available", !!lineage && lineage.directChildrenCount < 15],
-    ["No active round or candidate", !!lineage && lineage.activeEpoch.equals(zero) && lineage.activeCandidate.equals(zero)],
-    ["Protocol available", !!settings && !settings.paused]
-  ] as const;
-  return <main><Navigation /><div className="shell"><section className="page-intro"><div className="breadcrumbs"><Link href="/">Discover</Link><span>/</span><Link href={`/token/${mintText}`}>{shortAddress(mintText)}</Link><span>/</span><span>Reproduction</span></div><div className="eyebrow">THE NEXT BRANCH</div><h1>{roundOpen ? "The family is growing." : "Start the next generation."}</h1><p>Open a round for the community to propose and select a child. A successful child becomes its own token and burns 10M from its parent's reserve.</p></section>
-    <div className="workspace-grid"><div className="token-main"><div className="token-metrics"><article className="card"><span className="label">Parent status</span><div className="metric" style={{ fontSize: 16 }}>{lineage ? statusLabel(lineage.status) : "Loading…"}</div><span className="small">{active ? "Ready to reproduce" : "Awaiting activation"}</span></article><article className="card"><span className="label">Available reserve</span><div className="metric">{vaultAmount === null ? "—" : `${(Number(vaultAmount) / 1e12).toLocaleString("en-US")}M`}</div><span className="small">Parent tokens</span></article><article className="card"><span className="label">Child slots</span><div className="metric">{lineage ? 15 - lineage.directChildrenCount : "—"}<span className="muted"> / 15</span></div><span className="small">Available branches</span></article></div>
-    <article className="card"><div className="panel-title"><h2>How a round works</h2><span>COMMUNITY SELECTED</span></div><div className="reproduction-flow"><div><b>01 / PROPOSE</b><strong>Choose a direction</strong><p>Submit a child's name, identity, and token details during the proposal window.</p></div><div><b>02 / VOTE</b><strong>Let holders decide</strong><p>Parent-token holders vote for a proposal. Tokens are escrowed until the round is finalized.</p></div><div><b>03 / LAUNCH</b><strong>Grow the family</strong><p>The selected child launches on Raydium. Graduation triggers settlement and the parent burn.</p></div></div><div className="allocation-row"><span>Proposal window</span><b>{settings ? `${settings.proposalWindow} seconds` : "Loading…"}</b></div><div className="allocation-row"><span>Voting window</span><b>{settings ? `${settings.votingWindow} seconds` : "Loading…"}</b></div><div className="allocation-row"><span>Burn on successful settlement</span><b>10,000,000 parent tokens</b></div></article>
-    <article className="card"><h2>{roundOpen ? "Round is live" : "Open a reproduction round"}</h2><p className="small">{roundOpen ? "An on-chain round is already active for this parent. It must finish before another round can open." : "Opening a round starts the proposal window immediately. Anyone can open an eligible round; your wallet covers the network and account creation costs."}</p>{roundOpen && <p><a className="text-link" href={`https://explorer.solana.com/address/${lineage!.activeEpoch.toBase58()}?cluster=devnet`} target="_blank" rel="noopener noreferrer">Inspect active round ↗</a></p>}<div className="actions"><button className="button primary" onClick={openRound} disabled={busy || !eligible || !wallet.publicKey || !vaultAmount || vaultAmount < 10_000_000_000_000n}>{busy ? "Opening round…" : roundOpen ? "Round already active" : "Open round ↗"}</button><Link className="button" href={`/token/${mintText}`}>Back to token</Link></div>{!wallet.publicKey && <p className="small" style={{ marginTop: 16 }}>Connect a wallet to open a round.</p>}{message && <p className="notice" role="status">{message}</p>}{signature && <a className="text-link" href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}</article>
-    </div><aside className="launch-aside"><article className="card"><div className="aside-label">PARENT ELIGIBILITY</div><h2>Ready to branch out?</h2><ul className="check-list">{steps.map(([label,passed]) => <li key={label}><span>{label}</span><b className={passed ? "" : "pending"}>{passed ? "✓" : "—"}</b></li>)}</ul></article><div className="notice" style={{ margin: 0 }}>Round opening is available in this devnet interface. Proposal submission, voting, and child launch currently run through the project scripts; their web controls are still pending.</div></aside></div><footer className="footer"><Link href="/">STOLONS / Discover</Link><span>On-chain families · Solana devnet</span></footer>
-  </div></main>;
+import Link from 'next/link';
+import {useEffect,useMemo,useRef,useState} from 'react';
+import {useParams} from 'next/navigation';
+import {PublicKey,type Keypair} from '@solana/web3.js';
+import {useConnection,useWallet} from '@solana/wallet-adapter-react';
+import {Navigation} from '../../../components/nav';
+import {ChildProposalForm} from '../../../components/child-proposal-form';
+import {STOLONS_PROGRAM_ID,DEVNET_LAUNCH_LOOKUP_TABLE} from '../../../lib/devnet';
+import {shortAddress,statusLabel} from '../../../lib/tokens';
+import {checkLaunchMetadata} from '../../../lib/metadata';
+import {deriveEpochPda} from '@stolons/sdk';
+import type {readReproduction,ReproductionAction} from '@stolons/sdk/devnet-reproduction';
+import type {RootLaunchInput} from '@stolons/sdk/devnet-launch';
+type State=Awaited<ReturnType<typeof readReproduction>>&{observedAt:number};
+export default function ReproductionPage(){
+ const {mint:mintText}=useParams<{mint:string}>(),{connection}=useConnection(),wallet=useWallet();
+ const program=useMemo(()=>new PublicKey(STOLONS_PROGRAM_ID),[]),walletText=wallet.publicKey?.toBase58();
+ const [state,setState]=useState<State|null>(null),[refresh,setRefresh]=useState(0),[selectedRound,setSelectedRound]=useState('latest'),[olderRound,setOlderRound]=useState(''),[nowMs,setNowMs]=useState(Date.now()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loadError,setLoadError]=useState(''),[message,setMessage]=useState(''),[signature,setSignature]=useState(''),[uncertain,setUncertain]=useState(false),[amount,setAmount]=useState('1000');
+ const mintSigner=useRef<Keypair|null>(null);const [launchPreview,setLaunchPreview]=useState<{input:RootLaunchInput&{parentMint:PublicKey};cost:number}|null>(null);
+ useEffect(()=>{setState(null);setSelectedRound('latest');setLaunchPreview(null);mintSigner.current=null;setUncertain(false);setSignature('');},[mintText]);
+ useEffect(()=>{let cancelled=false;let pending=false;async function load(){if(pending)return;pending=true;try{const api=await import('@stolons/sdk/devnet-reproduction');const value=await api.readReproduction(connection,program,new PublicKey(mintText),walletText?new PublicKey(walletText):undefined,selectedRound==='latest'?undefined:BigInt(selectedRound));if(!cancelled){setState({...value,observedAt:Date.now()});setLoadError('');}}catch(cause){if(!cancelled)setLoadError(cause instanceof Error?cause.message:'Could not load reproduction.');}finally{pending=false;}}void load();const timer=setInterval(load,5000);return()=>{cancelled=true;clearInterval(timer)};},[connection,program,mintText,walletText,selectedRound,refresh]);
+ useEffect(()=>{const timer=setInterval(()=>setNowMs(Date.now()),1000);return()=>clearInterval(timer)},[]);
+ const chainNow=state?state.now+BigInt(Math.max(0,Math.floor((nowMs-state.observedAt)/1000))):0n;
+ const phase=state?.epoch?(state.epoch.status!=='Open'?'closed':chainNow<state.epoch.proposalEnd?'propose':chainNow<state.epoch.voteEnd?'vote':'finalize'):null;
+ const eligible=!!state&&!state.paused&&['RootActive','DescendantActive'].includes(state.parent.status)&&state.parent.activeEpoch.equals(PublicKey.default)&&state.parent.activeCandidate.equals(PublicKey.default)&&state.parent.directChildrenCount<15&&state.reserve>=10000000000000n;
+ const remaining=state?.epoch&&phase&&['propose','vote'].includes(phase)?Number((phase==='propose'?state.epoch.proposalEnd:state.epoch.voteEnd)-chainNow):null;
+ async function transact(action:ReproductionAction){if(!wallet.publicKey||!wallet.signTransaction||uncertain)return;setBusy(true);setError('');setMessage('Checking on-chain state and simulating…');try{
+  const [api,trade]=await Promise.all([import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/devnet-trade')]);
+  const prepared=await api.buildReproductionAction(connection,program,new PublicKey(mintText),wallet.publicKey,action);
+  try{const tx=await trade.sendDevnetTrade(connection,prepared,tx=>wallet.signTransaction!(tx));setSignature(tx);setMessage(action.kind==='withdraw'?'Your vote tokens have been returned.':'Transaction confirmed. Updating the round…');if(action.kind==='open'||action.kind==='open-propose')setSelectedRound('latest');setRefresh(value=>value+1);return true;}catch(cause){if(cause instanceof trade.TradeSubmittedError){setUncertain(true);setSignature(cause.signature);}throw cause;}
+ }catch(cause){setMessage('');setError(cause instanceof Error?cause.message:'Transaction failed.');}finally{setBusy(false)}return false;}
+ async function vote(proposalId:number){try{const {parseTradeAmount}=await import('@stolons/sdk/devnet-trade');const tokens=parseTradeAmount(amount,6);if(!state?.epochKey)return;await transact({kind:'vote',epoch:state.epochKey,proposalId,amount:tokens});}catch(cause){setError(cause instanceof Error?cause.message:'Invalid vote amount.')}}
+ async function prepareChild(){if(!wallet.publicKey||!wallet.signMessage||!state?.candidate)return;setBusy(true);setError('');setMessage('Recovering the selected child and checking launch details…');try{
+  const [api,reproduction,keys]=await Promise.all([import('@stolons/sdk/devnet-launch'),import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/child-mint')]);
+  const account=await connection.getAccountInfo(state.candidate.proposal,'confirmed');if(!account?.owner.equals(program))throw Error('Winning proposal unavailable.');
+  const proposal=reproduction.decodeProposal(account.data);if(!proposal.proposer.equals(wallet.publicKey))throw Error('Use the wallet that proposed this child.');
+  const signer=await keys.recoverChildMint(program,proposal.epoch,proposal.proposalId,wallet.publicKey,wallet.signMessage);if(!signer.publicKey.equals(proposal.childMint))throw Error('This proposal uses a different mint key. Recover it with the original launch tooling.');
+  const bytes=await checkLaunchMetadata(proposal.name,proposal.symbol,proposal.metadataUri),hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes)));if(hash.some((byte,index)=>byte!==proposal.metadataHash[index]))throw Error('Metadata changed since this child was proposed.');
+  const input={programId:program,parentMint:new PublicKey(mintText),creator:wallet.publicKey,mint:proposal.childMint,name:proposal.name,symbol:proposal.symbol,metadataUri:proposal.metadataUri,lookupTable:new PublicKey(DEVNET_LAUNCH_LOOKUP_TABLE)};
+  const prepared=await api.buildDevnetChildLaunch(connection,input),cost=await api.simulateRootLaunch(connection,prepared);mintSigner.current=signer;setLaunchPreview({input,cost});setMessage('Child launch simulation passed. Review the cost, then launch.');
+ }catch(cause){setMessage('');setError(cause instanceof Error?cause.message:'Could not prepare child launch.');}finally{setBusy(false)}}
+ async function launchChild(){if(!launchPreview||!mintSigner.current||!wallet.signTransaction||!wallet.publicKey?.equals(launchPreview.input.creator)||uncertain)return;setBusy(true);setError('');setMessage('Rechecking the selected child before launch…');try{
+  const [api,reproduction,trade]=await Promise.all([import('@stolons/sdk/devnet-launch'),import('@stolons/sdk/devnet-reproduction'),import('@stolons/sdk/devnet-trade')]);
+  const candidateAccount=await connection.getAccountInfo((await import('@stolons/sdk')).deriveCandidatePda(program,launchPreview.input.mint),'confirmed');if(!candidateAccount?.owner.equals(program))throw Error('Candidate missing.');const candidate=reproduction.decodeCandidate(candidateAccount.data);
+  const proposalAccount=await connection.getAccountInfo(candidate.proposal,'confirmed');if(!proposalAccount?.owner.equals(program))throw Error('Proposal missing.');const proposal=reproduction.decodeProposal(proposalAccount.data);
+  const bytes=await checkLaunchMetadata(proposal.name,proposal.symbol,proposal.metadataUri),hash=new Uint8Array(await crypto.subtle.digest('SHA-256',new Uint8Array(bytes)));if(hash.some((byte,index)=>byte!==proposal.metadataHash[index]))throw Error('Metadata changed since proposal.');
+  const prepared=await api.buildDevnetChildLaunch(connection,launchPreview.input);
+  try{const tx=await api.sendChildLaunch(connection,prepared,mintSigner.current,tx=>wallet.signTransaction!(tx));setSignature(tx);setLaunchPreview(null);mintSigner.current=null;setMessage('Child launched and registered. Open its token page to complete graduation.');setRefresh(value=>value+1);}catch(cause){if(cause instanceof trade.TradeSubmittedError){setUncertain(true);setSignature(cause.signature);}throw cause;}
+ }catch(cause){setMessage('');setError(cause instanceof Error?cause.message:'Child launch failed.');}finally{setBusy(false)}}
+ const disabled=busy||uncertain||!wallet.signTransaction||!!(state?.vote&&state.vote.voter.toBase58()!==walletText)||!!(state?.epoch&&selectedRound!=='latest'&&state.epoch.epochId.toString()!==selectedRound);
+ const rounds=state?Array.from({length:Number(state.parent.nextEpochId<20n?state.parent.nextEpochId:20n)},(_,i)=>(state.parent.nextEpochId-1n-BigInt(i)).toString()):[];
+ return <main><Navigation/><div className="shell"><section className="page-intro"><div className="breadcrumbs"><Link href="/">Discover</Link><span>/</span><Link href={`/token/${mintText}`}>{shortAddress(mintText)}</Link><span>/</span><span>Reproduction</span></div><div className="eyebrow">THE NEXT BRANCH</div><h1>Grow the next generation.</h1><p>Propose a child, vote with parent tokens, and launch the winning proposal. A child that graduates and settles burns 10M parent tokens.</p></section>
+ <div className="workspace-grid"><div className="token-main">
+ <div className="token-metrics"><article className="card"><span className="label">Parent status</span><div className="metric" style={{fontSize:16}}>{state?statusLabel(state.parent.status):'Loading…'}</div></article><article className="card"><span className="label">Reproduction reserve</span><div className="metric">{state?(Number(state.reserve)/1e12).toLocaleString()+'M':'—'}</div><span className="small">Parent tokens</span></article><article className="card"><span className="label">Successful children</span><div className="metric">{state?.parent.directChildrenCount??'—'} / 15</div></article></div>
+ <article className="card"><div className="panel-title"><h2>Reproduction round</h2><button className="button compact" disabled={busy} onClick={()=>setRefresh(v=>v+1)}>↻ Refresh</button></div>{rounds.length>0&&<><label className="label" htmlFor="round-choice">Round history</label><select id="round-choice" value={selectedRound} disabled={busy} onChange={event=>setSelectedRound(event.target.value)}><option value="latest">Latest round</option>{selectedRound!=='latest'&&!rounds.includes(selectedRound)&&<option value={selectedRound}>Round {selectedRound}</option>}{rounds.map(id=><option key={id} value={id}>Round {id}</option>)}</select>{state&&state.parent.nextEpochId>20n&&<details><summary className="small">Find an older round</summary><form onSubmit={event=>{event.preventDefault();try{if(!/^\d+$/.test(olderRound)||BigInt(olderRound)>=state.parent.nextEpochId)throw Error('Enter an existing round number.');setSelectedRound(BigInt(olderRound).toString());}catch(cause){setError(cause instanceof Error?cause.message:'Invalid round number.');}}}><label className="label" htmlFor="older-round">Round number</label><input id="older-round" inputMode="numeric" value={olderRound} onChange={event=>setOlderRound(event.target.value)}/><button className="button" type="submit" disabled={busy}>Open round history</button></form></details>}</>}
+ <p className="small">{state?.epoch?`Round ${state.epoch.epochId} · ${phase==='propose'?'Proposals open':phase==='vote'?'Voting open':phase==='finalize'?'Ready to finalize':state.epoch.status==='NoWinner'?'Closed without a winner':'Winner selected'}`:'No reproduction round yet.'}{remaining!==null&&` · ${Math.max(0,remaining)}s remaining`}</p>{state&&<p className="small">Proposal window: {String(state.proposalWindow)}s · Voting window: {String(state.votingWindow)}s</p>}
+ {eligible&&<button className="button primary" disabled={disabled} onClick={()=>transact({kind:'open'})}>Open new round ↗</button>}{phase==='finalize'&&state?.epochKey&&<button className="button primary" disabled={disabled} onClick={()=>transact({kind:'finalize',epoch:state.epochKey!})}>{state.epoch!.highestSupport===0n?'Close round without winner':'Finalize winning proposal'} ↗</button>}
+ {!state&& !error&&<p className="small" role="status">Reading on-chain round state…</p>}
+ </article>
+ {state?.vote&&<article className="card"><h2>Your vote</h2><p className="small">{(Number(state.vote.amount)/1e6).toLocaleString()} parent tokens · {state.vote.withdrawn?'Returned to your wallet':phase==='closed'?'Ready to withdraw':'Escrowed until round finalization'}</p>{!state.vote.withdrawn&&phase==='closed'&&state.epochKey&&<button className="button primary" disabled={disabled} onClick={()=>transact({kind:'withdraw',epoch:state.epochKey!})}>Return my vote tokens ↗</button>}</article>}
+ {(eligible||(phase==='propose'&&state?.epochKey&&!state.paused&&state.epoch!.proposalCount<32))&&state&&<ChildProposalForm program={program} epoch={eligible?deriveEpochPda(program,new PublicKey(mintText),state.parent.nextEpochId):state.epochKey!} proposalId={eligible?0:state.epoch!.proposalCount} fee={state.proposalFee} opensRound={eligible} busy={busy||uncertain} onError={setError} onBusyChange={setBusy} onSubmit={async args=>!!await transact(eligible?{kind:'open-propose',epoch:deriveEpochPda(program,new PublicKey(mintText),state.parent.nextEpochId),args}:{kind:'propose',epoch:state.epochKey!,args})}/>}
+ {state?.proposals.length!==0&&state?.epoch&&<article className="card"><div className="panel-title"><h2>Child proposals</h2><span>{state.proposals.length} PROPOSALS</span></div>{phase==='vote'&&!state.vote&&<><label className="label" htmlFor="vote-amount">Parent tokens to escrow</label><input id="vote-amount" inputMode="decimal" value={amount} onChange={event=>setAmount(event.target.value)}/><p className="small">One vote per wallet per round. Escrowed tokens are returned after finalization. Highest token support wins; ties go to the earlier proposal.</p></>}{state.proposals.map(proposal=><div className="proposal-row" key={proposal.proposalId}><div><strong>{proposal.name} <span className="muted">${proposal.symbol}</span></strong><p className="small">{(Number(proposal.supportAmount)/1e6).toLocaleString()} parent tokens · By {shortAddress(proposal.proposer.toBase58())}{proposal.proposalId===state.epoch!.winningProposalId&&state.epoch!.highestSupport>0n?' · '+(phase==='closed'?'Winner':'Leading'):''}</p><a className="text-link" href={/^https:\/\//.test(proposal.metadataUri)?proposal.metadataUri:undefined} target="_blank" rel="noopener noreferrer">Token details ↗</a></div>{phase==='vote'&&!state.vote&&!state.paused&&<button className="button" disabled={disabled} onClick={()=>vote(proposal.proposalId)}>Vote ↗</button>}</div>)}</article>}
+ {state?.candidate&&<article className="card"><div className="panel-title"><h2>Selected child</h2><span>{state.candidate.status.toUpperCase()}</span></div><p className="small">{shortAddress(state.candidate.childMint.toBase58())} · Proposed by {shortAddress(state.candidate.proposer.toBase58())}</p>{state.candidate.status==='Selected'?<><p className="small">Launch deadline: {new Date(Number(state.candidate.launchDeadline)*1000).toLocaleString()}. Launch using the proposer wallet.</p>{!launchPreview?<button className="button primary" disabled={disabled||!wallet.signMessage||walletText!==state.candidate.proposer.toBase58()||chainNow>state.candidate.launchDeadline} onClick={prepareChild}>Preview child launch →</button>:<><p className="notice">Launch {launchPreview.input.name} (${launchPreview.input.symbol}). Estimated cost: {(launchPreview.cost/1e9).toFixed(6)} test SOL.</p><div className="actions"><button className="button primary" disabled={disabled||!wallet.publicKey?.equals(launchPreview.input.creator)} onClick={launchChild}>Sign and launch child ↗</button><button className="button" disabled={busy} onClick={()=>setLaunchPreview(null)}>Cancel preview</button></div></>}</>:<><p className="small">Migration deadline: {new Date(Number(state.candidate.migrationDeadline)*1000).toLocaleString()}.</p><div className="notice">Graduate and activate this child to settle the family. Settlement burns 10M parent tokens and activates the child’s reproduction reserve.</div><Link className="button primary" href={`/token/${state.candidate.childMint.toBase58()}`}>Open child token →</Link></>}
+ {((state.candidate.status==='Selected'&&chainNow>state.candidate.launchDeadline)||(state.candidate.status==='Launched'&&chainNow>state.candidate.migrationDeadline))&&<div className="actions"><button className="button" disabled={disabled} onClick={()=>transact({kind:'expire'})}>Release expired candidate ↗</button></div>}</article>}
+ <div aria-live="polite">{message&&<p className="notice">{message}</p>}{(error||loadError)&&<p className="error" role="alert">{error||loadError}</p>}{signature&&<a className="text-link" href={`https://explorer.solana.com/tx/${signature}?cluster=devnet`} target="_blank" rel="noopener noreferrer">View transaction ↗</a>}{uncertain&&<div className="notice">Inspect the submitted transaction before trying another action.<button className="button" onClick={()=>{setUncertain(false);setRefresh(v=>v+1)}}>I checked; refresh state</button></div>}</div>
+ </div><aside className="launch-aside"><article className="card"><h2>One child at a time.</h2><p className="small">An active parent can have up to 15 successful direct children. Each settlement consumes 10M tokens from its 150M reproduction reserve.</p><p className="small">Voting locks existing parent tokens temporarily. A losing vote does not burn your tokens.</p><Link className="button" href={`/token/${mintText}`}>Back to parent token →</Link></article><div className="notice">Devnet child graduation target: 1 test SOL. Manual activation controls are available for testing; the backend keeper can complete activation automatically.</div></aside></div><footer className="footer"><Link href="/">STOLONS / Discover</Link><span>Solana devnet · On-chain reproduction</span></footer></div></main>;
 }

@@ -1,7 +1,7 @@
 import { MAX_METADATA_BYTES, validateLaunchDetails, validateLaunchMetadata } from "@stolons/sdk/launch-validation";
 
 /** Runs in the browser so user-provided URLs never reach the app server. */
-export async function checkLaunchMetadata(name: string, symbol: string, uri: string): Promise<void> {
+export async function checkLaunchMetadata(name: string, symbol: string, uri: string): Promise<Uint8Array> {
   validateLaunchDetails(name, symbol, uri);
   let response: Response;
   try {
@@ -24,4 +24,5 @@ export async function checkLaunchMetadata(name: string, symbol: string, uri: str
   let offset = 0;
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
   validateLaunchMetadata(new TextDecoder("utf-8", { fatal: true }).decode(bytes), name, symbol);
+  return bytes;
 }

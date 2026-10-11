@@ -1,8 +1,10 @@
-import { Connection, PublicKey, Keypair, TransactionMessage, VersionedTransaction } from "@solana/web3.js";
+import { Connection, PublicKey, Keypair, TransactionMessage, VersionedTransaction, SYSVAR_CLOCK_PUBKEY, ComputeBudgetProgram } from "@solana/web3.js";
 import { DEVNET_PROGRAM_ID, LaunchpadConfig, Curve, CpmmCreatorFeeOn, initializeV2, getPdaLaunchpadAuth, getPdaLaunchpadPoolId, getPdaLaunchpadVaultId, getPdaMetadataKey, getPdaVestId } from "@raydium-io/raydium-sdk-v2";
+import { decodeCandidate,decodeProposal } from "./devnet-reproduction.js";
+import { sendDevnetTrade } from "./devnet-trade.js";
 import { buildInstruction } from "./builders.js";
 import { appendAfterInitializeV2 } from "./raydium.js";
-import { deriveConfigPda, deriveFamilyPda, deriveLineagePda, deriveReproductionAuthorityPda, deriveVaultAuthorityPda, deriveReproductionVaultPda } from "./pda.js";
+import { deriveConfigPda, deriveFamilyPda, deriveLineagePda, deriveReproductionAuthorityPda, deriveVaultAuthorityPda, deriveReproductionVaultPda, deriveCandidatePda } from "./pda.js";
 import { TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, SYSTEM_PROGRAM_ID, INSTRUCTIONS_SYSVAR_ID } from "./constants.js";
 import { decodeLaunchConfig, DEVNET_GENESIS_HASH, validateLaunchDetails } from "./launch-validation.js";
 
@@ -14,6 +16,7 @@ export interface RootLaunchInput {
   symbol: string;
   metadataUri: string;
   lookupTable?: PublicKey;
+  parentMint?: PublicKey;
 }
 
 /** Uses the deployed platform, not a new platform derived from each creator. */
@@ -41,7 +44,24 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
     getPdaLaunchpadVaultId(c.launchpad, pool, mint).publicKey, getPdaLaunchpadVaultId(c.launchpad, pool, c.quote).publicKey,
     getPdaMetadataKey(mint).publicKey, TOKEN_PROGRAM_ID, 6, input.name, input.symbol, input.metadataUri,
     { type: "ConstantCurve", totalSellA: sell, migrateType: "cpmm", supply, totalFundRaisingB: raising }, locked, bn(0n), bn(0n), CpmmCreatorFeeOn.OnlyTokenB);
-  const registration = buildInstruction(programId, "register_root_launch", {
+  let child: {parent: Awaited<ReturnType<import('./client.js').StolonsClient['getLineage']>>;proposal:PublicKey}|null=null;
+  if(input.parentMint){
+    const {StolonsClient}=await import('./client.js');
+    const [parent,candidateAccount,clock]=await Promise.all([new StolonsClient(connection,programId).getLineage(input.parentMint),connection.getAccountInfo(deriveCandidatePda(programId,mint),'confirmed'),connection.getAccountInfo(SYSVAR_CLOCK_PUBKEY,'confirmed')]);
+    if(!parent||!['RootActive','DescendantActive'].includes(parent.status)||!parent.activeCandidate.equals(mint)||!candidateAccount?.owner.equals(programId)||!clock)throw Error('Selected child or active parent missing.');
+    const candidate=decodeCandidate(candidateAccount.data);
+    if(candidate.status!=='Selected'||!candidate.parentMint.equals(input.parentMint)||!candidate.childMint.equals(mint)||clock.data.readBigInt64LE(32)>candidate.launchDeadline)throw Error('Child is not selected or its launch deadline passed.');
+    const proposalAccount=await connection.getAccountInfo(candidate.proposal,'confirmed');if(!proposalAccount?.owner.equals(programId))throw Error('Winning proposal missing.');
+    const proposal=decodeProposal(proposalAccount.data);
+    if(!proposal.childMint.equals(mint)||!proposal.epoch.equals(candidate.epoch)||!proposal.proposer.equals(candidate.proposer)||proposal.name!==input.name||proposal.symbol!==input.symbol||proposal.metadataUri!==input.metadataUri)throw Error('Child launch details must match the winning proposal.');
+    child={parent,proposal:candidate.proposal};
+  }
+  const registration = child ? buildInstruction(programId,'register_candidate_launch',{
+    config,launcher:creator,parent:deriveLineagePda(programId,input.parentMint!),parent_mint:input.parentMint!,candidate:deriveCandidatePda(programId,mint),proposal:child.proposal,
+    child_mint:mint,child_lineage:deriveLineagePda(programId,mint),family:deriveFamilyPda(programId,child.parent!.rootMint),root_mint:child.parent!.rootMint,pool_state:pool,
+    platform_config:c.platform,vesting_record:vesting,reproduction_authority:reproduction,vault_authority:deriveVaultAuthorityPda(programId,mint),reproduction_vault:deriveReproductionVaultPda(programId,mint),quote_mint:c.quote,launchlab_program:c.launchpad,token_program:TOKEN_PROGRAM_ID,
+    associated_token_program:ASSOCIATED_TOKEN_PROGRAM_ID,system_program:SYSTEM_PROGRAM_ID,instructions:INSTRUCTIONS_SYSVAR_ID
+  }) : buildInstruction(programId, "register_root_launch", {
     config, family: deriveFamilyPda(programId, mint), lineage: deriveLineagePda(programId, mint), creator, mint, pool_state: pool,
     platform_config: c.platform, vesting_record: vesting, reproduction_authority: reproduction,
     vault_authority: deriveVaultAuthorityPda(programId, mint), reproduction_vault: deriveReproductionVaultPda(programId, mint),
@@ -50,7 +70,7 @@ export async function buildDevnetRootLaunch(connection: Connection, input: RootL
   });
   const instructions = appendAfterInitializeV2([init], c.launchpad, { platformConfig: c.platform, poolState: pool, baseMint: mint, quoteMint: c.quote }, registration);
   const latest = await connection.getLatestBlockhash("confirmed");
-  const message = new TransactionMessage({ payerKey: creator, recentBlockhash: latest.blockhash, instructions });
+  const message = new TransactionMessage({ payerKey: creator, recentBlockhash: latest.blockhash, instructions: input.parentMint?[ComputeBudgetProgram.setComputeUnitLimit({units:400000}),...instructions]:instructions });
   const table = input.lookupTable ? (await connection.getAddressLookupTable(input.lookupTable)).value : null;
   if (input.lookupTable && (!table || table.state.deactivationSlot !== 18_446_744_073_709_551_615n)) throw new Error("The shared launch lookup table is unavailable.");
   const transaction = new VersionedTransaction(table ? message.compileToV0Message([table]) : message.compileToLegacyMessage());
@@ -94,4 +114,19 @@ export async function sendRootLaunch(connection: Connection, prepared: PreparedR
   } catch (cause) {
     throw new LaunchSubmittedError(signature, `${cause instanceof Error ? cause.message : "Confirmation unavailable"}. Inspect the transaction before retrying.`);
   }
+}
+
+export async function buildDevnetChildLaunch(connection:Connection,input:RootLaunchInput & {parentMint:PublicKey}) {
+ return buildDevnetRootLaunch(connection,input);
+}
+export async function sendChildLaunch(connection:Connection,prepared:PreparedRootLaunch,mintSigner:Keypair,signTransaction:(tx:VersionedTransaction)=>Promise<VersionedTransaction>) {
+ if(!mintSigner.publicKey.equals(prepared.mint))throw Error('Mint signer does not match selected child.');
+ prepared.transaction.sign([mintSigner]);
+ return sendDevnetTrade(connection,{...prepared,quote:{quotedAt:Date.now()}},async transaction=>{
+  const signed=await signTransaction(transaction);
+  // Wallet priority-fee changes invalidate the earlier mint signature. The sender
+  // still verifies all protected instructions before simulating or broadcasting.
+  signed.sign([mintSigner]);
+  return signed;
+ });
 }

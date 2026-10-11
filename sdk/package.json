@@ -11,7 +11,10 @@
     "./devnet-graduation": "./dist/devnet-graduation.js",
     "./devnet-trade": "./dist/devnet-trade.js",
     "./devnet-launch": "./dist/devnet-launch.js",
-    "./launch-validation": "./dist/launch-validation.js"
+    "./launch-validation": "./dist/launch-validation.js",
+    "./devnet-reproduction": "./dist/devnet-reproduction.js",
+    "./child-mint": "./dist/child-mint.js",
+    "./verify-family": "./dist/verify-family.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
