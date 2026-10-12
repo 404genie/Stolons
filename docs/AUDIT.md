@@ -40,3 +40,9 @@ Review the outstanding adversarial and integration gates in [MAINNET.md](MAINNET
 ## Follow-up audit findings
 
 The 85 SOL target is now enforced on-chain and in clients. Conditional status-1 expiry protection is added, but the conflicting Raydium timestamp semantics remain a release blocker. The owner selected quorum, proposer bond and anti-sniping protections; they are implemented in version 3. The owner-supplied follow-up build passed 18 Rust tests, 70 client tests and SBF/IDL compilation with 22 instructions; the table above now records that revised artifact. Focused runtime verification and timestamp verification remain pending. Review the new `settle_proposal_bond` instruction and appended Epoch/Candidate fields. No deployment or account migration is included.
+
+## Focused timestamp result — 2026-10-12
+
+The owner completed the signed devnet buy simulation at slot 510077557. Its returned pool was status 1, with vesting start 1791763602 equal to the returned Clock sysvar. The buy trace contained no migration. The completing buy was not broadcast; the only submitted transactions were the earlier creator funding and root launch. Raw bytes and their independently checked hash are recorded in [validation/fundraising-clock-2026-10-12.json](validation/fundraising-clock-2026-10-12.json).
+
+This resolves the question of whether the tested devnet LaunchLab buy sets a positive timestamp before migration. The status-1 expiry protection has supporting runtime evidence for that deployment. It does not establish behavior of the mainnet LaunchLab binary or exercise Stolons expiry/bond instructions. Those limits remain explicit in the release review. No further run of this probe is required, and hosting holds remain in place.

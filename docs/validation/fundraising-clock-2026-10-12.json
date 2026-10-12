@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "evidenceSource": "owner-reported signed devnet simulation; account hash and decoded timestamp independently checked",
+  "cluster": "devnet",
+  "probeCommit": "ebdf8e2e0956ec3734a7ff2c3cc63bfe88997635",
+  "mint": "EuUhRmnWWiV9nvVoSumk7hTCeYnMtoRgYZ1ckCx98ebe",
+  "pool": "GWaaE9MxvwVk42xwn5CVK3XhZ2W2Gx87jfTS7CKWHGX9",
+  "launchpad": "DRay6fNdQ5J82H7xV6uq2aV3mNrUZ1J4PgSKsWgptcm6",
+  "simulationSlot": 510077557,
+  "poolStatusAfterSimulatedBuy": 1,
+  "vestingStartTime": "1791763602",
+  "clockUnixTimestamp": "1791763602",
+  "poolAccountSha256": "a700b0c329d19332d3c3a2f8c5c14fbced30eaf3b13d2cd6bd514230fd686fb6",
+  "postSimulationPoolDataBase64": "9+3j9dfD3kacBAAAAAAAAP8BBgkBAIDGpH6NAwAAwFdzpXwCAGKE5u9GKgMA6HxBEAAAAAAAwFdzpXwCAP3JmjsAAAAAAMqaOwAAAAAaPiYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYLeYbIgAAAAAAAAAAAAAAAAAAAAAAACSJMxqAAAAAABgt5hsiAAAYXPsC2Fbv85DLyjlLwIHiWRM57T8QJhRfPGpwQwcBn0nHEEUxuHKmJcMQXFePGfE2a0Z8wwf0CXdOp9MIo+tRs6ZcwD8P7RNyYeZCwadrJbReRcVHhjrNBlNd0J2SsZFBpuIV/6rgYT7aH9jRhjANdrEOdwa6ztVmKDwAAAAAAEPuN/6IFOM4mxVqA69B5I/P3To7qm9gmXywPfXNy+tDUZZu/oT3s8n+1scKZ2wGqMszGks37QCHRlBjKOC47xAz/L1ZRc1A0RCyFmETWCwwKMgHrb0nezgz0pcBQxxhsoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "postSimulationClockDataBase64": "dSpnHgAAAABl/MpqAAAAAJwEAAAAAAAAnQQAAAAAAACSJMxqAAAAAA==",
+  "completingBuySubmitted": false,
+  "transactionsSubmitted": 2,
+  "limitation": "Demonstrates pre-migration timestamp behavior in the deployed devnet LaunchLab buy simulation. Does not verify the mainnet binary or execute Stolons expire_candidate. Does not approve deployment."
+}
