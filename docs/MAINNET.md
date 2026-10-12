@@ -181,3 +181,7 @@ This resolves the question of whether the tested devnet LaunchLab buy sets a pos
 ## Offline release evidence check
 
 Run `node scripts/production/prepare-release.mjs` after pulling the audit evidence. It now rejects a source commit, program identity, binary size or SHA-256 that differs from the recorded reviewed build, and includes the completed devnet clock check plus explicit remaining gates. It reads no keys and sends no transactions. A passed offline check does not authorize deployment. Keep the existing reviewed artifacts; documentation and probe updates do not require a new Rust build.
+
+## Read-only deployment funding plan
+
+After the offline release review passes, run `pnpm sdk:build`, `node scripts/production/inspect-venues.mjs`, then `node scripts/production/deployment-budget.mjs`. Supply `MAINNET_RPC_URL` privately if using a dedicated endpoint. These commands read current mainnet accounts and rent quotes; they never read signing keys or submit transactions. The budget reports the authority and keeper separately, includes a conservative temporary-buffer funding envelope, and identifies an existing program account that requires a separate upgrade review. Do not confuse that envelope with SOL ultimately spent. No deployment command or public activation is included.
