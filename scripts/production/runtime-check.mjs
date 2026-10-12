@@ -4,13 +4,14 @@ import {spawn} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
+import {useHttpConfirmation} from '../../services/keeper/rpc.mjs';
 import {Connection,Keypair,PublicKey,SystemProgram,Transaction,TransactionInstruction,sendAndConfirmTransaction,ComputeBudgetProgram} from '@solana/web3.js';
 const folder=resolve('target/mainnet'),binary=await readFile(folder+'/stolons.so');
 const reviewed=JSON.parse(await readFile(new URL('../../docs/validation/mainnet-audit-build-2026-10-11.json',import.meta.url),'utf8'));
 assert.equal(createHash('sha256').update(binary).digest('hex'),reviewed.sha256.program,'Reviewed binary required');
 const program=new PublicKey(reviewed.programId),payer=Keypair.generate(),zero=PublicKey.default;
 const launchpad=new PublicKey('LanMV9sAd7wArD4vJFi2qDdfnVhFxYSUg6eADduJ3uj'),token=new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-const root=await mkdtemp(resolve('target/runtime-check-'));const args=['--reset','--ledger',root+'/ledger','--bind-address','127.0.0.1','--rpc-port','18899','--faucet-port','18900','--dynamic-port-range','18901-18920','--upgradeable-program',program.toBase58(),folder+'/stolons.so','none'];
+const root=await mkdtemp(resolve('target/runtime-check-'));const args=['--reset','--ledger',root+'/ledger','--bind-address','127.0.0.1','--rpc-port','18899','--faucet-port','18921','--dynamic-port-range','18901-18920','--upgradeable-program',program.toBase58(),folder+'/stolons.so','none'];
 const hash=s=>createHash('sha256').update(s).digest().subarray(0,8);
 const key=()=>Keypair.generate().publicKey;
 const u=(n,size=8)=>{const b=Buffer.alloc(size);if(size===1)b[0]=Number(n);else if(size===4)b.writeUInt32LE(Number(n));else if(size===16){b.writeBigUInt64LE(BigInt(n)&((1n<<64n)-1n));b.writeBigUInt64LE(BigInt(n)>>64n,8);}else b.writeBigInt64LE(BigInt(n));return b;};
@@ -49,7 +50,9 @@ for(const [label,status,winner,expected,redirect]of [['loser refund',0,false,nul
 }
 const log=await import('node:fs').then(fs=>fs.openSync(root+'/validator.log','w'));
 const childProcess=spawn('solana-test-validator',args,{stdio:['ignore',log,log]});let spawnError;childProcess.on('error',error=>{spawnError=error;});
-const connection=new Connection('http://127.0.0.1:18899','confirmed');
+const connection=new Connection('http://127.0.0.1:18899','confirmed');useHttpConfirmation(connection,()=>new Promise(r=>setTimeout(r,250)));
+process.once('SIGINT',()=>{childProcess.kill('SIGTERM');process.exit(130);});
+process.once('SIGTERM',()=>{childProcess.kill('SIGTERM');process.exit(143);});
 let nonce=0;
 const send=instruction=>sendAndConfirmTransaction(connection,new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({units:200000+(++nonce)}),instruction),[payer],{commitment:'confirmed'});
 const report={status:'running',binarySha256:reviewed.sha256.program,programId:program.toBase58(),endpoint:'localhost only',cases:[],mainnetTransactionsSent:0,limitation:'Synthetic genesis fixtures exercise Stolons expiry and bond instructions. They do not execute Raydium mainnet buy logic or the entire governance lifecycle.'};
