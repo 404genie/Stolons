@@ -177,3 +177,7 @@ It writes public evidence to `target/devnet/fundraising-clock-test.json` and pri
 The owner completed the signed devnet buy simulation at slot 510077557. Its returned pool was status 1, with vesting start 1791763602 equal to the returned Clock sysvar. The buy trace contained no migration. The completing buy was not broadcast; the only submitted transactions were the earlier creator funding and root launch. Raw bytes and their independently checked hash are recorded in [validation/fundraising-clock-2026-10-12.json](validation/fundraising-clock-2026-10-12.json).
 
 This resolves the question of whether the tested devnet LaunchLab buy sets a positive timestamp before migration. The status-1 expiry protection has supporting runtime evidence for that deployment. It does not establish behavior of the mainnet LaunchLab binary or exercise Stolons expiry/bond instructions. Those limits remain explicit in the release review. No further run of this probe is required, and hosting holds remain in place.
+
+## Offline release evidence check
+
+Run `node scripts/production/prepare-release.mjs` after pulling the audit evidence. It now rejects a source commit, program identity, binary size or SHA-256 that differs from the recorded reviewed build, and includes the completed devnet clock check plus explicit remaining gates. It reads no keys and sends no transactions. A passed offline check does not authorize deployment. Keep the existing reviewed artifacts; documentation and probe updates do not require a new Rust build.
