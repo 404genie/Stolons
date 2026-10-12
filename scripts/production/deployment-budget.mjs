@@ -13,7 +13,8 @@ async function main(){
  const sha256=b=>createHash('sha256').update(b).digest('hex');
  const reviewed=JSON.parse(await readFile(new URL('../../docs/validation/mainnet-audit-build-2026-10-11.json',import.meta.url),'utf8'));
  const clock=JSON.parse(await readFile(new URL('../../docs/validation/fundraising-clock-2026-10-12.json',import.meta.url),'utf8'));
- const evidence=verifyReleaseEvidence({sourceCommit:(await readFile(folder+'source-commit.txt','utf8')).trim(),programId:m.programId,artifactBytes:binary.length,sha256:{program:sha256(binary),idl:sha256(idl)}},reviewed,clock);
+ const runtimeEvidence=JSON.parse(await readFile(new URL('../../docs/validation/expiry-bond-runtime-2026-10-12.json',import.meta.url),'utf8'));
+ const evidence=verifyReleaseEvidence({sourceCommit:(await readFile(folder+'source-commit.txt','utf8')).trim(),programId:m.programId,artifactBytes:binary.length,sha256:{program:sha256(binary),idl:sha256(idl)}},reviewed,clock,runtimeEvidence);
  if(JSON.parse(idl).address!==m.programId)throw Error('IDL program identity mismatch.');
  if(m.upgradeAuthority!==m.configAuthority||m.keeperWallet===m.upgradeAuthority)throw Error('Unexpected authority/keeper configuration.');
  const rpc=process.env.MAINNET_RPC_URL||'https://api.mainnet-beta.solana.com';

@@ -1,0 +1,56 @@
+{
+  "status": "passed",
+  "evidenceSource": "Owner-supplied Codespaces localhost validator runtime report",
+  "probeCommit": "fb0919d763ec437a356462bb5f3c3caff90eb339",
+  "solanaCliVersion": "2.3.0",
+  "binarySha256": "342d6c2a79cad8f9b176f7e2f8813490c9383b22066b646e190e4976b5cbe6ca",
+  "programId": "8uXCB9g8ctvVddm9W992KF862PX1gT5kijEQmbdbjQ8B",
+  "cases": [
+    {
+      "label": "on-time pending migration",
+      "status": "passed"
+    },
+    {
+      "label": "on-time migrated",
+      "status": "passed"
+    },
+    {
+      "label": "late pending migration",
+      "status": "passed"
+    },
+    {
+      "label": "unfinished curve",
+      "status": "passed"
+    },
+    {
+      "label": "wrong fundraising target",
+      "status": "passed"
+    },
+    {
+      "label": "loser refund",
+      "status": "passed"
+    },
+    {
+      "label": "successful winner refund",
+      "status": "passed"
+    },
+    {
+      "label": "expired winner forfeiture",
+      "status": "passed"
+    },
+    {
+      "label": "orphan winner forfeiture",
+      "status": "passed"
+    },
+    {
+      "label": "active winner stays locked",
+      "status": "passed"
+    },
+    {
+      "label": "redirected proposer rejected",
+      "status": "passed"
+    }
+  ],
+  "mainnetTransactionsSent": 0,
+  "limitation": "Synthetic fixtures execute the reviewed Stolons SBF binary. Does not execute Raydium mainnet buy logic or the entire governance lifecycle."
+}

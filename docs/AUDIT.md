@@ -46,3 +46,9 @@ The 85 SOL target is now enforced on-chain and in clients. Status-1 expiry prote
 The owner completed the signed devnet buy simulation at slot 510077557. Its returned pool was status 1, with vesting start 1791763602 equal to the returned Clock sysvar. The buy trace contained no migration. The completing buy was not broadcast; the only submitted transactions were the earlier creator funding and root launch. Raw bytes and their independently checked hash are recorded in [validation/fundraising-clock-2026-10-12.json](validation/fundraising-clock-2026-10-12.json).
 
 This resolves the question of whether the tested devnet LaunchLab buy sets a positive timestamp before migration. The status-1 expiry protection has supporting runtime evidence for that deployment. It does not establish behavior of the mainnet LaunchLab binary or exercise Stolons expiry/bond instructions. Those limits remain explicit in the release review. No further run of this probe is required, and hosting holds remain in place.
+
+## Expiry and bond runtime result — 2026-10-12
+
+The owner supplied a passed localhost validator run using Agave 2.3.0 and the reviewed binary hash. All 11 expiry and bond cases passed, including repeated settlement rejection in the successful bond cases. See [validation/expiry-bond-runtime-2026-10-12.json](validation/expiry-bond-runtime-2026-10-12.json). This supersedes the pending expiry/bond runtime gate above; it is not a full governance lifecycle test or a Raydium mainnet timestamp test. No mainnet transactions were sent.
+
+The supplied funding check quotes 4.0503094 SOL combined ProgramData/program rent, plus a provisional 0.10 SOL setup allowance and 0.10 SOL keeper starter balance: 4.2503094 SOL combined planning budget. Initialization and priority fees still need explicit estimation before treating this as a complete launch budget. The earlier 8.20 SOL figure is superseded.

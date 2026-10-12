@@ -193,3 +193,9 @@ After the offline release review passes, run `pnpm sdk:build`, `node scripts/pro
 The prior 8.20 SOL envelope double-counted temporary buffer rent. In Agave v2.3.0, `cli/src/program.rs::do_process_program_deploy` creates a buffer using ProgramData rent. `programs/bpf_loader/src/lib.rs` drains that buffer to the payer before creating ProgramData. For the supplied rent quotes, one ProgramData deposit plus executable-account rent is 4.0503094 SOL. Adding the 0.10 SOL planning allowance gives 4.1503094 SOL for the authority; the optional 0.10 SOL keeper starter budget makes 4.2503094 SOL combined. These are planning figures, not an exact final bill; platform/config/lookup-table setup and priority fees still need explicit estimation, and the installed CLI version must match the reviewed behavior. The deployment-budget script now uses the corrected calculation.
 
 Primary sources: [Agave v2.3.0 CLI](https://github.com/anza-xyz/agave/blob/v2.3.0/cli/src/program.rs) and [Upgradeable loader](https://github.com/anza-xyz/agave/blob/v2.3.0/programs/bpf_loader/src/lib.rs).
+
+## Expiry and bond runtime result — 2026-10-12
+
+The owner supplied a passed localhost validator run using Agave 2.3.0 and the reviewed binary hash. All 11 expiry and bond cases passed, including repeated settlement rejection in the successful bond cases. See [validation/expiry-bond-runtime-2026-10-12.json](validation/expiry-bond-runtime-2026-10-12.json). This supersedes the pending expiry/bond runtime gate above; it is not a full governance lifecycle test or a Raydium mainnet timestamp test. No mainnet transactions were sent.
+
+The supplied funding check quotes 4.0503094 SOL combined ProgramData/program rent, plus a provisional 0.10 SOL setup allowance and 0.10 SOL keeper starter balance: 4.2503094 SOL combined planning budget. Initialization and priority fees still need explicit estimation before treating this as a complete launch budget. The earlier 8.20 SOL figure is superseded.
