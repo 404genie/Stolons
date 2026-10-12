@@ -9,3 +9,15 @@ test('clock evidence binds authentic intermediate pool fields to the simulated b
  const f=fixture(),report=inspect(f);assert.equal(report.poolStatusAfterSimulatedBuy,1);assert.equal(report.vestingStartTime,report.clockUnixTimestamp);assert.equal(report.poolAccountSha256.length,64);
  for(const mutate of [f=>f.bytes[17]=2,f=>f.bytes.writeBigUInt64LE(0n,125),f=>f.clock.writeBigInt64LE(101n,32),f=>f.bytes.writeBigUInt64LE(24000000000n,69),f=>f.bytes.writeBigUInt64LE(0n,101),f=>f.bytes.writeBigUInt64LE(1n,109),f=>f.bytes.set(Keypair.generate().publicKey.toBytes(),205),f=>f.config.launchConfig=Keypair.generate().publicKey]){const f=fixture();mutate(f);assert.throws(()=>inspect(f));}
 });
+
+test('failed timestamp assertion preserves status-1 zero timestamp and raw evidence',()=>{
+ const f=fixture();f.bytes.writeBigUInt64LE(0n,125);
+ assert.throws(()=>inspect(f),error=>{
+  assert.equal(error.evidence.poolStatusAfterSimulatedBuy,1);
+  assert.equal(error.evidence.vestingStartTime,'0');
+  assert.equal(error.evidence.clockUnixTimestamp,'100');
+  assert.equal(error.evidence.observedPoolFields.locked,'150000000000000');
+  assert.equal(error.evidence.postSimulationPoolDataBase64,f.bytes.toString('base64'));
+  assert.doesNotThrow(()=>JSON.stringify(error.evidence));return true;
+ });
+});
