@@ -1,6 +1,8 @@
 // Read-only funding estimate for the reviewed artifact. No keys or transactions.
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
+import {createRequire} from 'node:module';
+const {PlatformConfig}=createRequire(new URL('../../sdk/package.json',import.meta.url))('@raydium-io/raydium-sdk-v2');
 import {Connection,PublicKey} from '@solana/web3.js';
 import {assertCluster} from '../../sdk/dist/network.js';
 import {readRetryFetch} from '../../services/keeper/rpc.mjs';
@@ -23,12 +25,13 @@ async function main(){
  await assertCluster(connection,'mainnet-beta');
  const keys=[m.programId,m.upgradeAuthority,m.keeperWallet].map(k=>new PublicKey(k));
  const accounts=await connection.getMultipleAccountsInfo(keys,'confirmed');
- const sizes={program:36,programData:binary.length+45,temporaryBuffer:binary.length+37};
+ const sizes={program:36,programData:binary.length+45,temporaryBuffer:binary.length+37,platformConfig:PlatformConfig.span,protocolConfig:307,lookupTableFullCapacity:56+256*32};
  const rents={};for(const [name,size]of Object.entries(sizes))rents[name]=await connection.getMinimumBalanceForRentExemption(size,'confirmed');
- const feeAndSetupAllowance=100000000; // Planning allowance, not an exact fee quote.
+ const feeAndSetupAllowance=20000000; // Deployment/setup transaction fee allowance, not a fee quote.
  // Agave v2.3.0 funds its buffer at ProgramData rent, then the loader
  // drains the buffer to the payer before funding ProgramData. Do not double count.
- const conservativeAuthorityBudget=rents.programData+rents.program+feeAndSetupAllowance;
- console.log(JSON.stringify({cluster:m.cluster,programId:m.programId,programAccountExists:!!accounts[0],programExecutable:accounts[0]?.executable||false,authority:m.upgradeAuthority,keeper:m.keeperWallet,balancesLamports:{authority:accounts[1]?.lamports||0,keeper:accounts[2]?.lamports||0},rentExemptionLamports:rents,planningAllowanceLamports:feeAndSetupAllowance,conservativeAuthorityBudgetLamports:conservativeAuthorityBudget,authorityShortfallLamports:Math.max(0,conservativeAuthorityBudget-(accounts[1]?.lamports||0)),keeperStarterBudgetLamports:100000000,note:'Agave v2.3.0 initial deployment reuses the ProgramData-sized buffer deposit; it is not a second full rent deposit. Budget includes one ProgramData rent, program account rent and allowance. It is not an exact fee quote. Initialization costs may exceed the planning allowance. Existing deployments require a separate upgrade review.',releaseEvidence:evidence,transactionsSent:0,publicLaunchApproved:false},null,2));
+ const setupRent=rents.platformConfig+rents.protocolConfig+rents.lookupTableFullCapacity;
+ const conservativeAuthorityBudget=rents.programData+rents.program+setupRent+feeAndSetupAllowance;
+ console.log(JSON.stringify({cluster:m.cluster,programId:m.programId,programAccountExists:!!accounts[0],programExecutable:accounts[0]?.executable||false,authority:m.upgradeAuthority,keeper:m.keeperWallet,balancesLamports:{authority:accounts[1]?.lamports||0,keeper:accounts[2]?.lamports||0},rentExemptionLamports:rents,setupAccountRentLamports:setupRent,lookupTableCapacityBudgeted:256,planningAllowanceLamports:feeAndSetupAllowance,conservativeAuthorityBudgetLamports:conservativeAuthorityBudget,authorityShortfallLamports:Math.max(0,conservativeAuthorityBudget-(accounts[1]?.lamports||0)),keeperStarterBudgetLamports:100000000,combinedPlanningBudgetLamports:conservativeAuthorityBudget+100000000,proposedFundingLamports:{authority:4200000000,keeper:100000000},fitsProposedFunding:conservativeAuthorityBudget<=4200000000,note:'Agave v2.3.0 initial deployment reuses the ProgramData-sized buffer deposit; it is not a second full rent deposit. Budget includes one ProgramData rent, program account rent, SDK platform layout rent, protocol config rent, a maximum-capacity lookup table and 0.02 SOL transaction allowance. Excess priority fees, additional accounts, and real-token smoke trades are excluded; this is not a hard fee cap or trading budget. Existing deployments require a separate upgrade review.',releaseEvidence:evidence,transactionsSent:0,publicLaunchApproved:false},null,2));
 }
 main().catch(error=>{console.error('Deployment budget blocked:',String(error.message).replace(/https?:\/\/[^\s]+/g,'[RPC URL redacted]'));process.exitCode=1;});
