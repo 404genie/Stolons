@@ -41,6 +41,7 @@ try{
  const simulation=await connection.simulateTransaction(buy.transaction,{sigVerify:true,commitment:'confirmed',accounts:{encoding:'base64',addresses:[prepared.pool.toBase58(),SYSVAR_CLOCK_PUBKEY.toBase58()]}});
  if(simulation.value.err)throw Error('Completing-buy simulation failed.');
  const [poolAccount,clockAccount]=simulation.value.accounts||[];
+ report.rawSimulationAccounts={slot:simulation.context.slot,pool:poolAccount,clock:clockAccount};await save();
  const evidence=clockEvidence(poolAccount,clockAccount,config,mint.publicKey);
  const kinds=launchInstructions(simulation.value.logs,config.launchpad.toBase58());if(!kinds.includes('buy')||kinds.includes('migration'))throw Error('Unexpected instruction trace.');
  Object.assign(report,{status:'passed',simulationSlot:simulation.context.slot,...evidence,simulationLogs:simulation.value.logs,status1TimestampObserved:true,evidenceKind:'signed-completing-buy-simulation-on-devnet',limitation:'This executes the deployed devnet LaunchLab buy logic in simulation. It does not test a live Stolons expire_candidate transaction or the mainnet LaunchLab binary.',transactionsSubmitted:report.transactions.length});await save();console.log(JSON.stringify(report,null,2));

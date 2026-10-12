@@ -41,6 +41,7 @@ try{
  if(simulation.value.err)throw Error('Completing-buy simulation failed: '+JSON.stringify(simulation.value.err));
  stage='validate simulated clock';
  const [poolAccount,clockAccount]=simulation.value.accounts||[];
+ report.rawSimulationAccounts={slot:simulation.context.slot,pool:poolAccount,clock:clockAccount};await save();
  const evidence=clockEvidence(poolAccount,clockAccount,config,mint.publicKey);
  const kinds=launchInstructions(simulation.value.logs,config.launchpad.toBase58());if(!kinds.includes('buy')||kinds.includes('migration'))throw Error('Unexpected instruction trace.');
  Object.assign(report,{status:'passed',simulationSlot:simulation.context.slot,...evidence,simulationLogs:simulation.value.logs,status1TimestampObserved:true,evidenceKind:'signed-completing-buy-simulation-on-devnet',limitation:'This executes the deployed devnet LaunchLab buy logic in simulation. It does not test a live Stolons expire_candidate transaction or the mainnet LaunchLab binary.',transactionsSubmitted:report.transactions.length});delete report.error;delete report.failedStage;delete report.diagnosticStage;await save();console.log(JSON.stringify(report,null,2));
