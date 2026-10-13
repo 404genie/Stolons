@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-13",
+  "cluster": "devnet",
+  "appCommit": "a8183bd0da9e4475b2ff2d8e4d7e5987ea7957e2",
+  "programId": "4GreceHsQNZWernuHmXYrfY7z5S62qrue21ZueJqZ8pJ",
+  "contractRedeployed": false,
+  "mainnetTransactionsSent": 0,
+  "frontend": "https://stolons-devnet.vercel.app/",
+  "backend": "https://web-api-devnet.up.railway.app",
+  "admin": "https://stolons-devnet.vercel.app/admin",
+  "adminWallet": "FRVw3s9Wz4pKzRuUwEj9FZYa39vLbAfXzUqiDYAK2K87",
+  "checks": {
+    "frontendBuild": "passed",
+    "clientTests": 78,
+    "webTests": 16,
+    "discoveryBrowser": {
+      "tokens": 10,
+      "roots": 8,
+      "offspring": 2
+    },
+    "signedUploadThroughVercel": 200,
+    "metadataRead": 200,
+    "imageRead": 200,
+    "imageHashMatched": true,
+    "publicAssetCors": "*",
+    "unsignedAdminApi": 403
+  },
+  "keeper": "deployed disabled; existing devnet keys must be supplied directly from Codespaces",
+  "limitations": [
+    "No new token or trade submitted during hosting verification",
+    "Successful admin login requires the owner wallet; signature verification covered by tests",
+    "One synthetic signed-upload participant was recorded by the hosting verification; no token was launched",
+    "Vercel protection unchanged after automatic review rejected its removal"
+  ]
+}
