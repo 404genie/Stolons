@@ -15,3 +15,7 @@ The keeper service starts disabled because signing credentials cannot be recover
 ## Deployment verification
 
 The public beta is at https://stolons-devnet.vercel.app/ with onboarding at `/start` and wallet-protected stats at `/admin`. Both Railway web/API and Vercel frontend deployments passed. Browser discovery returned 10 existing tokens (8 roots and 2 offspring). A signed synthetic upload passed through Vercel to the persistent Railway volume; public JSON/image reads and image SHA-256 checks passed. This creates one verified-upload participant in the initial dashboard baseline and launches no token. Unsigned admin requests return 403. Evidence: [validation/devnet-beta-deployment-2026-10-13.json](validation/devnet-beta-deployment-2026-10-13.json). Automatic graduation remains pending direct keeper credential upload.
+
+## Public discovery visibility
+
+The ten earlier integration-test token mints are excluded from public devnet discovery, all its tabs and headline counts. New launches remain visible, including launches by wallets used in testing. This is a frontend listing filter: it does not close accounts, alter supply, change contract addresses, hide admin audit data or prevent direct mint-address access. Mainnet discovery is unaffected.

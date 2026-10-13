@@ -1,6 +1,7 @@
 "use client";
 import {Footer} from "../components/footer";
-import {NETWORK_LABEL} from "../lib/network";
+import {publicDiscoveryEntries} from "../lib/discovery-visibility";
+import {NETWORK_LABEL,SOLANA_CLUSTER} from "../lib/network";
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
@@ -17,7 +18,7 @@ export default function HomePage() {
   const [entries, setEntries] = useState<LineageAccount[]>([]), [info, setInfo] = useState<Record<string, TokenInfo>>({});
   const [loading, setLoading] = useState(true), [error, setError] = useState(""), [query, setQuery] = useState(""), [tab, setTab] = useState<Tab>("all"), [refresh, setRefresh] = useState(0);
   useEffect(() => { let cancelled = false; setLoading(true); setError("");
-    readLineages(connection).then(async lineages => { if (cancelled) return; setEntries(lineages); setLoading(false); const details = await Promise.all(lineages.slice(0, 24).map(async entry => [entry.mint.toBase58(), await readTokenInfo(connection, entry.mint.toBase58())] as const)); if (!cancelled) setInfo(Object.fromEntries(details)); }).catch(() => { if (!cancelled) { setError(`Could not load tokens from ${NETWORK_LABEL}. Try refreshing.`); setLoading(false); } });
+    readLineages(connection).then(async lineages => { lineages=publicDiscoveryEntries(lineages,SOLANA_CLUSTER); if (cancelled) return; setEntries(lineages); setLoading(false); const details = await Promise.all(lineages.slice(0, 24).map(async entry => [entry.mint.toBase58(), await readTokenInfo(connection, entry.mint.toBase58())] as const)); if (!cancelled) setInfo(Object.fromEntries(details)); }).catch(() => { if (!cancelled) { setError(`Could not load tokens from ${NETWORK_LABEL}. Try refreshing.`); setLoading(false); } });
     return () => { cancelled = true; };
   }, [connection, refresh]);
   const [graduated,setGraduated]=useState<Record<string,boolean>>({});
