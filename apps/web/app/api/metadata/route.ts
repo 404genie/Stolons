@@ -1,6 +1,6 @@
 import { MAX_IMAGE_BYTES, normalizeTokenDraft, createTokenMetadata, type TokenDraft } from "@stolons/sdk/launch-validation";
 import { imageExtension, verifyMetadataUpload } from "../../../lib/upload-auth";
-import { storeTokenAsset, localUploadsEnabled } from "../../../lib/token-storage";
+import { storeTokenAsset, localUploadsEnabled, recordVerifiedParticipant } from "../../../lib/token-storage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -26,6 +26,12 @@ export async function POST(request: Request) {
     } finally { await reader.cancel().catch(() => {}); }
     const bytes = new Uint8Array(size); let offset = 0;
     for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    if(process.env.UPLOAD_BACKEND_URL){
+      const backend=new URL(process.env.UPLOAD_BACKEND_URL);
+      if(backend.protocol!=="https:")throw new Error("Invalid upload backend.");
+      const response=await fetch(new URL('/api/metadata',backend),{method:'POST',headers:{'Content-Type':request.headers.get('content-type')!,'Origin':originText},body:bytes,signal:AbortSignal.timeout(25000),redirect:'error'});
+      return new Response(await response.arrayBuffer(),{status:response.status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+    }
     const form = await new Response(bytes, { headers: { "Content-Type": request.headers.get("content-type")! } }).formData();
     const text = (name: string) => { const value = form.get(name); if (typeof value !== "string") throw new Error(`Missing ${name}.`); return value; };
     // Codespaces can rewrite Origin while forwarding a request. The public site
@@ -48,6 +54,7 @@ export async function POST(request: Request) {
     const imageUrl = await storeTokenAsset(image, extension, signedOrigin);
     const metadata = createTokenMetadata(draft, imageUrl, file.type);
     const metadataUri = await storeTokenAsset(new TextEncoder().encode(JSON.stringify(metadata)), "json", signedOrigin);
+    await recordVerifiedParticipant(wallet);
     return Response.json({ metadataUri, imageUrl }, { headers: { "Cache-Control": "no-store" } });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Could not publish token details.";

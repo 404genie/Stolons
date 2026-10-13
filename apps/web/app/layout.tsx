@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Providers } from "./providers";
 import "./globals.css";
+import {IS_MAINNET} from "../lib/network";
 
 export const metadata: Metadata = {
   title: "Stolons — Memecoins that reproduce",
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // Wallet extensions can add attributes to this element before hydration.
     <html lang="en" suppressHydrationWarning>
       <body>
-        <Providers>{children}</Providers>
+        <Providers>{!IS_MAINNET&&<aside className="beta-notice">Devnet beta · Test tokens have no monetary value. <a href="/start">Get test SOL and try Stolons →</a></aside>}{children}</Providers>
       </body>
     </html>
   );

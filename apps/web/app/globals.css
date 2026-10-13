@@ -1357,3 +1357,5 @@ textarea {
 .proposal-row .small { margin:6px 0; }
 select { width:100%; padding:12px; border:1px solid rgba(255,255,255,.12); background:#111518; color:#edf2ee; border-radius:10px; }
 @media(max-width:600px) { .proposal-row { align-items:flex-start; flex-direction:column; } }
+
+.beta-notice{padding:12px 20px;text-align:center;font-size:13px;background:#1d251d;border-bottom:1px solid #445544;color:#d7e9ce}.beta-notice a{margin-left:8px;color:#d9ffab;text-decoration:underline}
